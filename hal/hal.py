@@ -3,6 +3,7 @@ import sys
 from hwconf import config
 sys.path.append("../")
 from logs import hallog as log
+from elixysobject import ElixysObject
 
 # All set_methods will send commands to hardware to change state
 # they will not return (block( until hardware reflects changes,
@@ -22,20 +23,20 @@ from logs import hallog as log
 # Validation with decorators?
 
 
-class ElixysObject(object):
-    """Parent object for all elixys systems
-    All onjects can therefore access the system
-    config and status
-    """
-    sysconf = config
-    status_ = None
+# class ElixysObject(object):
+    # """Parent object for all elixys systems
+    # All onjects can therefore access the system
+    # config and status
+    # """
+    # sysconf = config
+    # status_ = None
 
-    def get_status(self):
-        """ Get the current system state """
-        return self.status_
+    # def get_status(self):
+        # """ Get the current system state """
+        # return self.status_
 
-    status = property(get_status,
-                     doc="Access the system status")
+    # status = property(get_status,
+                      # doc="Access the system status")
 
 
 class SynthesizerObject(ElixysObject):
@@ -49,24 +50,25 @@ class SynthesizerObject(ElixysObject):
     def __init__(self, id, configname=None):
         self.set_id(id)
         self.synthesizer_objects.append(self)
-        self.configname = configname        
+        self.configname = configname
+
     def set_id(self, id_):
         self.id_ = id_
 
     def get_config(self):
-        return self.sysconf.get(self.configname, None)        
+        return self.sysconf.get(self.configname, None)
 
     config = property(get_config)
-        
+
     def get_unit_config(self):
         if not self.config is None:
-            cfg = self.config.get('Units',None)
+            cfg = self.config.get('Units', None)
             if not cfg is None:
                 return cfg.get(str(self.id_), None)
         return None
-        
+
     unit_conf = property(get_unit_config)
-    
+
     def __repr__(self):
         return "<%s(%s)>" % (self.__class__.__name__, str(self.id_))
 
@@ -80,11 +82,11 @@ class State(ElixysObject):
 
 
 class Mixer(SynthesizerObject):
-    """ The synthesizer has mixers for agitating 
-    the contents of the reactors.    
+    """ The synthesizer has mixers for agitating
+    the contents of the reactors.
     """
     def __init__(self, id):
-        super(Mixer, self).__init__(id,"Mixers")
+        super(Mixer, self).__init__(id, "Mixers")
         self.duty_ = 0
         self.period_ = 0
         self.on_ = False
@@ -125,7 +127,7 @@ class Mixer(SynthesizerObject):
 
 class Valve(SynthesizerObject):
     """ The system uses pnuematic valves to drive
-    actuators, the valve objects give access to 
+    actuators, the valve objects give access to
     turn them on or off an monitor the status
     """
     def __init__(self, id):
@@ -146,11 +148,11 @@ class Valve(SynthesizerObject):
 
 class Thermocouple(SynthesizerObject):
     """ Each reactor has multiple thermocouples to
-    monitor the temperature of each individual collet.    
-    This object is read-only but allows the monitoring 
+    monitor the temperature of each individual collet.
+    This object is read-only but allows the monitoring
     of the collet temperatures
     """
-    def __init__(self, id, configname = "Thermocouples"):
+    def __init__(self, id, configname="Thermocouples"):
         super(Thermocouple, self).__init__(id, configname)
         self.temperature_ = 25.0
 
@@ -163,8 +165,8 @@ class Thermocouple(SynthesizerObject):
 
 
 class AuxThermocouple(Thermocouple):
-    """ Additional thermocouples are available 
-    for monitoring user define temperatures such 
+    """ Additional thermocouples are available
+    for monitoring user define temperatures such
     as thermocouples place with in the vials
     """
     def __init__(self, id):
@@ -180,8 +182,8 @@ class Heater(SynthesizerObject):
     the heater.  TemperatureController objects can turn
     on heaters.  This prevents a user from purposely or
     accidentally generating a 'run away' heater.
-    """ 
-    def __init__(self, id):       
+    """
+    def __init__(self, id):
         super(Heater, self).__init__(id, "Heaters")
         self.on_ = False
 
@@ -193,14 +195,15 @@ class Heater(SynthesizerObject):
 
 
 class TemperatureController(SynthesizerObject):
-    """ Temperature controllers on the hardware link the 
+    """ Temperature controllers on the hardware link the
     thermocouples to the heater elements and use a feedback
     controller to maintain temperature. This object allows
     you to set the set-point and activate
     or deactivate the controller.
     """
     def __init__(self, id):
-        super(TemperatureController, self).__init__(id, "TemperatureControllers")
+        super(TemperatureController, self).__init__(id,
+                                                    "TemperatureControllers")
 
         self.setpoint_ = 25.0
         self.temperature_ = 25.0
@@ -297,34 +300,34 @@ class Fan(SynthesizerObject):
                   doc="Turn on fan")
 
 
-class LinearAxis(SynthesizerObject):
+class LinearActuator(SynthesizerObject):
     """ The system has multiple linear actuators that
     can have their positions set, and read.
     """
     def __init__(self, id):
-        super(LinearAxis, self).__init__(id, "LinearAxis")
+        super(LinearActuator, self).__init__(id, "LinearActuator")
 
     def set_position(self, value):
-        log.debug("Set Axis %d Position -> %s"
-              % (self.id_, value))
+        log.debug("Set Actuator %d Position -> %s"
+                  % (self.id_, value))
         self.position_ = value
 
     def get_position(self):
-        log.debug("Get Axis %d Position -> %s"
-              % (self.id_, self.position_))
+        log.debug("Get Actuator %d Position -> %s"
+                  % (self.id_, self.position_))
         return self.position_
 
     position = property(get_position, set_position,
                         doc="Set Actuator position")
 
     def set_home(self, value):
-        log.debug("Set Axis %d Home -> %s"
-              % (self.id_, value))
+        log.debug("Set Actuator %d Home -> %s"
+                  % (self.id_, value))
         self.home_ = value
 
     def get_home(self):
-        log.debug("Get Axis %d Home -> %s"
-              % (self.id_, self.home_))
+        log.debug("Get Actuator %d Home -> %s"
+                  % (self.id_, self.home_))
         return self.home_
 
     home = property(get_home, set_home,
@@ -341,7 +344,7 @@ class DigitalInput(SynthesizerObject):
 
     def get_tripped(self):
         log.debug("Get Digital input %d tripped -> %s"
-              % (self.id_, self.tripped_))
+                  % (self.id_, self.tripped_))
         return self.tripped_
 
     tripped = property(get_tripped,
@@ -394,8 +397,8 @@ class SynthesizerHAL(ElixysObject):
         self.fans = [Fan(i) for i in
                      range(self.sysconf['Fans']['count'])]
 
-        self.linear_axis = [LinearAxis(i) for i in
-                            range(self.sysconf['LinearAxis']['count'])]
+        self.linear_axis = [LinearActuator(i) for i in
+                            range(self.sysconf['LinearActuator']['count'])]
 
         self.digital_inputs = [DigitalInput(i) for i in
                                range(self.sysconf['DigitalInputs']['count'])]
