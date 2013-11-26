@@ -305,7 +305,7 @@ class LinearActuator(SynthesizerObject):
     can have their positions set, and read.
     """
     def __init__(self, id):
-        super(LinearActuator, self).__init__(id, "LinearActuator")
+        super(LinearActuator, self).__init__(id, "LinearActuators")
 
     def set_position(self, value):
         log.debug("Set Actuator %d Position -> %s"
@@ -398,7 +398,7 @@ class SynthesizerHAL(ElixysObject):
                      range(self.sysconf['Fans']['count'])]
 
         self.linear_axis = [LinearActuator(i) for i in
-                            range(self.sysconf['LinearActuator']['count'])]
+                            range(self.sysconf['LinearActuators']['count'])]
 
         self.digital_inputs = [DigitalInput(i) for i in
                                range(self.sysconf['DigitalInputs']['count'])]
