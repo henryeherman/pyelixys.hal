@@ -26,8 +26,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
     but putting them onto a queue.  The handler also, periodically
     send the commands from the software to the hardware.
     """
-
-    status = Status()
+    
     handler_instances = []
 
     def initialize(self, cmd_queue, status_queue):
@@ -73,18 +72,11 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         #self.write_message("Hello client")
 
     def on_message(self, message):
-        """ Upon receiving a message we parse the incoming status packet
-        binary data and convert it in to a Status dictionary.
-        This dictionary now contains the entire state of the system.
-        We place these objects onto the status queue for consumption by
+        """ Upon receiving a message we place these 
+        objects onto the status queue for consumption by
         the rest of the system """
-
-        # print 'message received %d' % len(message)
-        data = self.status.parse_packet(message)
-        #log.debug(json.dumps(data['Header'], sort_keys=True, indent=1))
-        #print "Message: %d\r\n" % self.count
         self.count += 1
-        self.status_queue.put(data)
+        self.status_queue.put(message)
 
     def on_close(self):
         """ This handler deals with when we close a connection
@@ -111,8 +103,10 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         try:
             while True:
                 cmd = self.cmd_queue.get(block=False)
-                log.debug("CMD:%s" % repr(cmd))
-                self.write_message("CMD:%s" % str(cmd))
+                #log.debug("CMD:%s" % repr(cmd))
+                log.debug("Wrote %d bytes" % len(str(cmd)))
+                self.write_message(str(cmd))
+                #self.write_message("CMD:%s" % repr(cmd))
         except Empty:
             pass
         tornado.ioloop.IOLoop.instance().add_timeout(
@@ -127,16 +121,21 @@ class WSServerProcess(Process):
     with to communicate directly with the hardware.
     Since it is a process we must use queues for all communication.
     """
+    
+    stop_event = Event()
 
     def __init__(self, cmd_queue, status_queue):
         """ Initialize the process and queues """
         super(WSServerProcess, self).__init__()
+        self.daemon = True
         self.cmd_queue = cmd_queue
         self.status_queue = status_queue
-
+        # Create a status object that parses the status packets
+        # on the queue
+        
     def run(self):
         """ Setup the tornado websocket server
-        Setup a periodic callback to see if the
+        setup a periodic callback to see if the
         server should exit gracefully
         """
         log.debug("Running server")
@@ -148,19 +147,14 @@ class WSServerProcess(Process):
         self.http_server = tornado.httpserver.HTTPServer(self.application)
         self.http_server.listen(8888)
         tornado.ioloop.PeriodicCallback(self.periodic_exit, 100).start()
+        
         try:
             log.debug("Tornado server IOLoop starting")
-            tornado.ioloop.IOLoop.instance().start()
-        except KeyboardInterrupt:
-            log.debug("Server shutting down, got KeyboardInterrupt")
+            tornado.ioloop.IOLoop.instance().start() 
+        except (KeyboardInterrupt, SystemExit):
             tornado.ioloop.IOLoop.instance().stop()
-
-    def terminate(self):
-        """ If we are told to exit,
-        go ahead and terminate the tornado server
-        """
-        tornado.ioloop.IOLoop.instance().stop()
-        super(WSServerProcess, self).terminate()
+            #tornado.ioloop.IOLoop.instance().stop()                    
+        
 
     @staticmethod
     def periodic_exit():
@@ -168,32 +162,24 @@ class WSServerProcess(Process):
         web server
         """
         #log.debug("Checking Exit")
-        if exit_event.is_set():
+        if WSServerProcess.stop_event.is_set():
             log.debug("Stopping Tornado server")
             tornado.ioloop.IOLoop.instance().stop()
 
-    def run_cmd(self, cmd):
-        #print "Adding %s to queue" % cmd
+    def run_cmd(self, cmd):        
         self.cmd_queue.put(cmd)
-        #print id(self.cmd_queue)
+        
+    def stop(self):
+        WSServerProcess.stop_event.set()
 
 command_queue = Queue()
 status_queue = Queue()
 wscomproc = WSServerProcess(command_queue, status_queue)
-
-
-def exit_gracefully(signum, frame):
-    """ Callback for when we want to shut down the process
-    and server threads
-    """
-    print "Exit Gracefully, Ctrl+C pressed"
-    wscomproc.terminate()
-    sys.exit(0)
-
+status = Status()
+status.update_from_queue(status_queue)        
 
 def start_server():
     """ Helper function to start the server """
-
     log.debug("Starting wsserver process")
     wscomproc.start()
 
@@ -203,34 +189,44 @@ def stop_server():
     log.debug("Stopping wsserver")
     wscomproc.terminate()
 
+def exit_gracefully(signum, frame):
+    """ Callback for when we want to shut down the process
+    and server threads
+    """
+    print "Exit Gracefully, Ctrl+C pressed"
+    log.debug("Ask the status update thread to quit")
+    status.stop_update()
+    log.debug("Set the stop event in main thread")
+    exit_event.set()
+    wscomproc.stop()
+    log.debug("Ask the wscommproc to terminate")
+    sys.exit(0)
+
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, exit_gracefully)
+    signal.signal(signal.SIGINT, exit_gracefully)    
+    
 
-    def check_for_status():
-        """ When testing the server, grab the
-        incoming status packet and print the packet id """
-
-        while(True):
-            time.sleep(.01)
-            try:
-                statusdict = wscomproc.status_queue.get(block=False)
-                print "Status id: %d" % statusdict['Header']['packet_id']
-            except Empty:
-                pass
-
-    # Run the check_for_status function as a thread so we
-    #  can add cmds to the cmd_queue in the main thread
+    def send_test_cmds():
+        for i in range(10):
+            time.sleep(5)
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](100.0))
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_period'][1](10))
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](10.0))
+            time.sleep(2)
+            wscomproc.run_cmd(cmd_lookup['Valves']['set_state0'](0xAA))
+            time.sleep(2)
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](51.0))
+            time.sleep(2)
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](20.0))        
+    
     import thread
-    thread.start_new_thread(check_for_status, ())
-
+    thread.start_new_thread(send_test_cmds, ())        
     start_server()
-    for i in range(10):
-        time.sleep(2)
-        wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](100.0))
-        wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][1](10.0))
-        wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](10.0))
-        time.sleep(2)
-        wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](50.0))
-        time.sleep(2)
-        wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][3](50.0))
-        time.sleep(0.5)
+    log.debug("Starting loop to check status")
+    while(not exit_event.is_set()):
+        if status.is_valid:
+            print "Mixer 0 duty_cycle= %f" % status['Mixers'][0]['duty_cycle']            
+        time.sleep(1.0)
+    log.debug("Attempt to join wscomproc")
+    wscomproc.join()
+    

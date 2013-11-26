@@ -1,17 +1,33 @@
 #!/usr/bin/env python
 import sys
+import time
 import threading
 import collections
+from Queue import Empty
 sys.path.append("../")
 from statusfmt import StatusMessageFormatFactory
 from elixysexceptions import ElixysValueError
 from elixysobject import ElixysObject
-#from logs import statlog as log
+from utils.elixysthread import ElixysStoppableThread
+from logs import statlog as log
 
 
 class ElixysReadOnlyError(ElixysValueError):
     pass
 
+
+class StatusThread(ElixysStoppableThread):
+    def __init__(self, status, status_queue):
+        super(StatusThread, self).__init__()
+        self.queue = status_queue
+        self.status = status
+        
+    def loop(self):        
+        try:            
+            statpkt = self.queue.get(block=False, timeout=0.1)
+            self.status.parse_packet(statpkt)
+        except Empty:
+            time.sleep(0.1)
 
 class Status(ElixysObject, collections.MutableMapping):
     def __init__(self, *args, **kwargs):
@@ -20,8 +36,11 @@ class Status(ElixysObject, collections.MutableMapping):
         self.store = dict()
         self.update(dict(*args, **kwargs))
         self.lock = threading.Lock()
+        self.is_valid = False
 
     def __getitem__(self, key):
+        if self.is_valid is False:
+            return None
         self.lock.acquire()
         val = self.store[self.__keytransform__(key)]
         self.lock.release()
@@ -65,20 +84,31 @@ class Status(ElixysObject, collections.MutableMapping):
                     rptmessagefmt = messagefmt['Repeat']
                     units = []
                     for i in range(count):
-                        for rkey, rval in rptmessagefmt.items():
-                            unit_dict = dict()
+                        unit_dict = dict()
+                        for rkey, rval in rptmessagefmt.items():                            
                             unit_dict[rkey] = data[data_idx]
                             #print rkey, data_idx
                             data_idx += 1
-                            units.append(unit_dict)
-                    sub_dict['Units'] = units
+                        units.append(unit_dict)
+                        sub_dict[i] = unit_dict
+                    sub_dict['Subs'] = units
+                    sub_dict['count'] = count
             data_dict[subsystem] = sub_dict
         self.lock.acquire()
         self.store = data_dict
         self.lock.release()
+        self.is_valid = True
         return data_dict
 
+    def update_from_queue(self, queue):
+        self.thread = StatusThread(self, queue)
+        self.thread.start()
+        
+    def stop_update(self):
+        self.thread.stop()        
+        
+status = Status()
+
 if __name__ == '__main__':
-    from tests import pktdata
-    status = Status()
-    data = status.parse_packet(pktdata.test_packet)
+    from tests import pktdata    
+    #data = status.parse_packet(pktdata.test_packet)

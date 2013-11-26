@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+import time
 import threading
 from threading import Event, Thread
 
@@ -8,20 +9,25 @@ class ElixysThread(Thread):
     elixys_threads = []
     
     def __init__(self):
-        Thread.__init__(self)
+        super(ElixysThread,self).__init__()
         self.elixys_threads.append(self)
     
 
 class ElixysStoppableThread(ElixysThread):
     
     def __init__(self):
-        ElixysThread.__init__(self)
+        super(ElixysStoppableThread, self).__init__()
         self.stop_event = Event()
-        self.stop_event.clear()
+        self.daemon = True
     
     def run(self):
-        while(!self.stop_event.isSet()):
-            self.loop()
+        while(not self.stop_event.is_set()):
+            self.loop()        
 
+    def stop(self):
+        self.stop_event.set()
+        self.join()
+        
     def loop(self):
-        pass
+        print "Doing loop"
+        time.sleep(1.0)

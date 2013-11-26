@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 """
+The StatusMessageFormatFactory object in statusfmt.py
+parses the sysconf and generates
+C source and header files for use on MCUs
+that wish to communicate with the websocket server.
+Status packet maintain the structure define in the INI
+Additional information can be found in the comments below.
+"""
 # Full Status Packet Description
 
 # Endianess -> ? TBD
@@ -126,31 +133,12 @@
 # Error Code 2 unsigned int|'I'|4|0-4294967295
 # Error Code 3 unsigned int|'I'|4|0-4294967295
 # Error Code 4 unsigned int|'I'|4|0-4294967295
-"""
+
 
 from hwconf import config
 import struct
 import jinja2
-
-fmt_chr = {
-    'c': 'char',
-    'b': 'signed char',
-    'B': 'unsigned char',
-    '?': 'bool',
-    'h': 'short',
-    'H': 'unsigned short',
-    'i': 'int',
-    'I': 'unsigned int',
-    'l': 'long',
-    'L': 'unsigned long',
-    'q': 'long long',
-    'Q': 'unsigned long log',
-    'f': 'float',
-    'd': 'double',
-    's': 'char[]',
-    'p': 'char[]',
-    'P': 'void *'
-}
+from fmt_lookup import fmt_chr
 
 
 class StatusMessageFormatFactory(object):
@@ -208,7 +196,7 @@ class StatusMessageFormatFactory(object):
         template_env = jinja2.Environment(loader=template_loader,
                                           trim_blocks=True,
                                           lstrip_blocks=True)
-        TEMPLATE_FILE = self.conf['c_header_template']
+        TEMPLATE_FILE = self.conf['c_status_header_template']
         template = template_env.get_template(TEMPLATE_FILE)
         template_vars = {"systems": self.subsystems,
                          "fmt_chr": fmt_chr}
@@ -226,7 +214,7 @@ class StatusMessageFormatFactory(object):
         template_env = jinja2.Environment(loader=template_loader,
                                           trim_blocks=True,
                                           lstrip_blocks=True)
-        TEMPLATE_FILE = self.conf['c_source_template']
+        TEMPLATE_FILE = self.conf['c_status_source_template']
         template = template_env.get_template(TEMPLATE_FILE)
         template_vars = {"systems": self.subsystems,
                          "fmt_chr": fmt_chr}
