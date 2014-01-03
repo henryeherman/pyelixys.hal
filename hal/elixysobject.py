@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
 from hwconf import config
+#from wsserver import status, wscomproc, cmd_lookup
 
 class ElixysObject(object):
     """Parent object for all elixys systems
@@ -8,11 +9,4 @@ class ElixysObject(object):
     config and status
     """
     sysconf = config
-    status_ = None
-
-    def get_status(self):
-        """ Get the current system state """
-        return self.status_
-
-    status = property(get_status,
-                      doc="Access the system status")
+        

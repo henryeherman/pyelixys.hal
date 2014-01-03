@@ -96,6 +96,8 @@ class Status(ElixysObject, collections.MutableMapping):
             data_dict[subsystem] = sub_dict
         self.lock.acquire()
         self.store = data_dict
+        for key, value in data_dict.items():
+            setattr(self,key,value)
         self.lock.release()
         self.is_valid = True
         return data_dict

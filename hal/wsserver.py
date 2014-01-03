@@ -1,6 +1,7 @@
 import sys
 import time
 import signal
+import thread
 import tornado.httpserver
 from multiprocessing import Process, Event, Queue
 from Queue import Empty
@@ -146,14 +147,13 @@ class WSServerProcess(Process):
         ])
         self.http_server = tornado.httpserver.HTTPServer(self.application)
         self.http_server.listen(8888)
-        tornado.ioloop.PeriodicCallback(self.periodic_exit, 100).start()
+        tornado.ioloop.PeriodicCallback(self.periodic_exit, 50).start()
         
         try:
             log.debug("Tornado server IOLoop starting")
             tornado.ioloop.IOLoop.instance().start() 
         except (KeyboardInterrupt, SystemExit):
             tornado.ioloop.IOLoop.instance().stop()
-            #tornado.ioloop.IOLoop.instance().stop()                    
         
 
     @staticmethod
@@ -207,26 +207,55 @@ if __name__ == "__main__":
     
 
     def send_test_cmds():
-        for i in range(10):
-            time.sleep(5)
-            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](100.0))
-            wscomproc.run_cmd(cmd_lookup['Mixers']['set_period'][1](10))
-            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](10.0))
-            time.sleep(2)
+        for i in range(2):
+            time.sleep(0.5)
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](100.0))            
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][1](5.0))
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](100.0))
+            time.sleep(0.5)
             wscomproc.run_cmd(cmd_lookup['Valves']['set_state0'](0xAA))
-            time.sleep(2)
-            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](51.0))
-            time.sleep(2)
-            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](20.0))        
+            time.sleep(0.5)
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](20.0))
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][1](20.0))
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](20.0))
+            time.sleep(0.5)
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](5.0))        
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][1](100.0))
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](5.0))
+		
+        wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](0.0))        
+        wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][1](0.0))
+        wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](0.0))
+		
+        for j in range(3):
+            for i in range(16):
+                time.sleep(0.1)
+                wscomproc.run_cmd(cmd_lookup['Valves']['set_state0'](1<<i))
+            for i in range(16):
+                time.sleep(0.1)
+                wscomproc.run_cmd(cmd_lookup['Valves']['set_state1'](1<<i))
+            for i in range(16):
+                time.sleep(0.1)
+                wscomproc.run_cmd(cmd_lookup['Valves']['set_state2'](1<<i))			
+        wscomproc.run_cmd(cmd_lookup['Valves']['set_state0'](0))
+        wscomproc.run_cmd(cmd_lookup['Valves']['set_state1'](0))					
+        wscomproc.run_cmd(cmd_lookup['Valves']['set_state2'](0))			
+		
+        for i in range(3):
+            time.sleep(0.5)
+            wscomproc.run_cmd(cmd_lookup['Fans']['turn_on'][i]())
+            time.sleep(0.5)
+            wscomproc.run_cmd(cmd_lookup['Fans']['turn_off'][i]())
+		    
+    #thread.start_new_thread(send_test_cmds, ())    
     
-    import thread
-    thread.start_new_thread(send_test_cmds, ())        
-    start_server()
     log.debug("Starting loop to check status")
-    while(not exit_event.is_set()):
-        if status.is_valid:
-            print "Mixer 0 duty_cycle= %f" % status['Mixers'][0]['duty_cycle']            
-        time.sleep(1.0)
-    log.debug("Attempt to join wscomproc")
-    wscomproc.join()
+    start_server()
+    
+    #while(not exit_event.is_set()):
+    #    if status.is_valid:
+    #        print "Thermocouple 0 err_code= %x" % ord(status['Thermocouples'][0]['error_code'])
+    #    time.sleep(1.0)
+    #log.debug("Attempt to join wscomproc")
+    #wscomproc.join()
     

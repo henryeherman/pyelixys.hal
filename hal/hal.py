@@ -4,6 +4,7 @@ from hwconf import config
 sys.path.append("../")
 from logs import hallog as log
 from elixysobject import ElixysObject
+from wsserver import wscomproc, status, cmd_lookup
 
 # All set_methods will send commands to hardware to change state
 # they will not return (block( until hardware reflects changes,
@@ -13,44 +14,46 @@ from elixysobject import ElixysObject
 # may return IF the command takes time to complete, these
 # commands will have additional flags on the system state they will
 # wait for to let us know they are busy
-# these special type of commands wil be wrapped in additional
+# these special type of commands will be wrapped in additional
 # logic that will determine if it fails, i.e. timers, etc.
 
 # All get_methods will read from a special thread safe variable
-# "system_state" this "system_state" will be updated regularly from
+# system "status" this status will be updated regularly from
 # the synthesizer which will stream its state!
 
-# Validation with decorators?
-
-
-# class ElixysObject(object):
-    # """Parent object for all elixys systems
-    # All onjects can therefore access the system
-    # config and status
-    # """
-    # sysconf = config
-    # status_ = None
-
-    # def get_status(self):
-        # """ Get the current system state """
-        # return self.status_
-
-    # status = property(get_status,
-                      # doc="Access the system status")
+# Validation with decorators? Later
 
 
 class SynthesizerObject(ElixysObject):
+    status = status
+    cmd_lookup = cmd_lookup
+    comproc = wscomproc
+    
+    def start_com_proc(self):
+        if not self.comproc.is_alive():
+            log.debug("Starting the Websocket communication process")
+            self.comproc.start()
+        else:
+            log.debug("The Websocket communication process is active")
+        
+    def stop_com_proc(self):
+        self.comproc.stop()
+        
+                      
+class SynthesizerSubObject(SynthesizerObject):
     """ All the subsystems inherit from this object,
     this give them access to their own specific configuration
     option, their own status, and the ability to
     send commands to hardware.
     """
     synthesizer_objects = []
+    
 
     def __init__(self, id, configname=None):
         self.set_id(id)
         self.synthesizer_objects.append(self)
         self.configname = configname
+        
 
     def set_id(self, id_):
         self.id_ = id_
@@ -81,7 +84,7 @@ class State(ElixysObject):
     pass
 
 
-class Mixer(SynthesizerObject):
+class Mixer(SynthesizerSubObject):
     """ The synthesizer has mixers for agitating
     the contents of the reactors.
     """
@@ -92,9 +95,15 @@ class Mixer(SynthesizerObject):
         self.on_ = False
 
     def set_duty_cycle(self, value):
-        log.debug("Set Mixer %d duty cycle -> %f" % (self.id_, value))
-        self.duty_ = value
-
+        log.debug("Set Mixer %d duty cycle -> %f" % (self.id_, value))        
+        if value >= 0.0 and value <= 100.0:
+            self.duty_ = value
+            cmd = self.cmd_lookup['Mixers']['set_duty_cycle'][self.id_](value)
+            self.comproc.run_cmd(cmd)
+        else:
+            # Raise Exception, value out of range!
+            log.error("Mixer %d duty cycle -> %f out of range" % (self.id_, value))                
+        
     def get_duty_cycle(self):
         log.debug("Get Mixer %d duty cycle -> %f" % (self.id_, self.duty_))
         return self.duty_
@@ -116,6 +125,10 @@ class Mixer(SynthesizerObject):
     def set_on(self, value):
         log.debug("Set Mixer %d on -> %s" % (self.id_, value))
         self.on_ = value
+        if value is True:
+            self.set_duty_cycle(100.0)
+        else:
+            self.set_duty_cycle(0.0)
 
     def get_on(self):
         log.debug("Get Mixer %d on -> %s" % (self.id_, self.on_))
@@ -125,7 +138,7 @@ class Mixer(SynthesizerObject):
                   doc="Turn the mixer motor on")
 
 
-class Valve(SynthesizerObject):
+class Valve(SynthesizerSubObject):
     """ The system uses pnuematic valves to drive
     actuators, the valve objects give access to
     turn them on or off an monitor the status
@@ -133,20 +146,72 @@ class Valve(SynthesizerObject):
     def __init__(self, id):
         super(Valve, self).__init__(id, "Valves")
         self.on_ = False
-
+        Valve.valve_state0 = 0
+        Valve.valve_state1 = 0
+        Valve.valve_state2 = 0
+        
     def set_on(self, value):
+        if not hasattr(self,'valve_state0') or not hasattr(self,'valve_state1') \
+            or not hasattr(self,'valve_state2'):
+            self.load_states()
         log.debug("Set Valve %d on -> %s" % (self.id_, value))
         self.on_ = value
-
-    def get_on(self):
-        log.debug("Get Valve %d on -> %s" % (self.id_, self.on_))
-        return self.on_
+        if self.id_ < 16:
+            log.debug("Before Set Valve %d (state0) on -> %s" % (self.id_, bin(Valve.valve_state0)))
+            if value is True:
+                Valve.valve_state0 |= (1<<(self.id_%16))            
+            else:
+                Valve.valve_state0 &= ~(1<<(self.id_%16))
+            self.comproc.run_cmd(self.cmd_lookup['Valves']['set_state0'](Valve.valve_state0))
+            log.debug("After Set Valve %d (state0) on -> %s" % (self.id_, bin(Valve.valve_state0)))
+            self.on_ = True
+        elif self.id_ < 32:
+            if value is True:
+                Valve.valve_state1 |= (1<< (self.id_%16))
+            else:                
+                Valve.valve_state1 &= ~(1<<(self.id_%16))
+            self.comproc.run_cmd(self.cmd_lookup['Valves']['set_state1'](Valve.valve_state1))
+            log.debug("Set Valve %d (state1) on -> %s" % (self.id_, bin(Valve.valve_state1)))
+            self.on_ = True
+        elif self.id_ < 48:            
+            if value is True:
+                Valve.valve_state2 |= (1<< (self.id_%16))                     
+            else:                
+                Valve.valve_state2 &= ~(1<<(self.id_%16))
+            self.comproc.run_cmd(self.cmd_lookup['Valves']['set_state2'](Valve.valve_state2))
+            log.debug("Set Valve %d (state2) on -> %s" % (self.id_, bin(Valve.valve_state2)))
+            self.on_ = True
+           
+        
+    def get_on(self):        
+        if not hasattr(self,'valve_state0') or not hasattr(self,'valve_state1') \
+            or not hasattr(self,'valve_state2'):
+            self.load_states()
+        val = False
+        if self.id_ < 16:
+            valve_state = self.status.Valves['state0']
+            val = bool((valve_state >> self.id_) & 1)
+            self.on_ = False
+            
+        elif self.id_ < 32:
+            valve_state = self.status.Valves['state1']
+            val = bool((valve_state >> (self.id_ - 16)) & 1)
+            self.on_ = False
+            
+        elif self.id_ < 48:
+            valve_state = self.status.Valves['state2']
+            val = bool((valve_state >> (self.id_ - 32)) & 1)            
+            self.on_ = False
+        
+        log.debug("Get Valve %d on -> %s" % (self.id_, val))
+        
+        return val
 
     on = property(get_on, set_on,
                   doc="Turn valve on")
 
 
-class Thermocouple(SynthesizerObject):
+class Thermocouple(SynthesizerSubObject):
     """ Each reactor has multiple thermocouples to
     monitor the temperature of each individual collet.
     This object is read-only but allows the monitoring
@@ -159,8 +224,9 @@ class Thermocouple(SynthesizerObject):
     def get_temperature(self):
         log.debug("Get Thermocouple %d temperature -> %f"
                   % (self.id_, self.temperature_))
+        self.temperature_ = self.status['Thermocouples'][self.id_]['temperature']
         return self.temperature_  # Checks temp and returns value
-
+        
     temperature = property(get_temperature)
 
 
@@ -171,9 +237,16 @@ class AuxThermocouple(Thermocouple):
     """
     def __init__(self, id):
         super(AuxThermocouple, self).__init__(id,  "AuxThermocouples")
+        
+    def get_temperature(self):
+        log.debug("Get AuxThermocouple %d temperature -> %f"
+                  % (self.id_, self.temperature_))
+        self.temperature_ = self.status['AuxThermocouples'][self.id_]['temperature']
+        return self.temperature_  # Checks temp and returns value
+        
+    temperature = property(get_temperature)
 
-
-class Heater(SynthesizerObject):
+class Heater(SynthesizerSubObject):
     """ Each collet has a separate AC heater
     each heater in controlled by a different
     temperature controller. This read-only
@@ -187,14 +260,16 @@ class Heater(SynthesizerObject):
         super(Heater, self).__init__(id, "Heaters")
         self.on_ = False
 
-    def get_on(self):
+    def get_on(self):        
+        self.state_ = self.status['Heaters']['state']
+        self.on_ = bool(self.state_ >> self.id_ & 1)
         log.debug("Get Heater %d on -> %s" % (self.id_, self.on_))
         return self.on_
 
     on = property(get_on)
 
 
-class TemperatureController(SynthesizerObject):
+class TemperatureController(SynthesizerSubObject):
     """ Temperature controllers on the hardware link the
     thermocouples to the heater elements and use a feedback
     controller to maintain temperature. This object allows
@@ -212,19 +287,29 @@ class TemperatureController(SynthesizerObject):
     def get_setpoint(self):
         log.debug("Get Temperature Controller %d setpoint -> %f"
                   % (self.id_, self.setpoint_))
+        self.setpoint_ = self.status.TemperatureControllers[self.id_]['setpoint']
         return self.setpoint_
 
-    def set_setpoint(self, value):
+    def set_setpoint(self, value):        
+        if value > 180.0:
+            #Raise exception
+            log.debug("Error Temperature Controller %d setpoint -> %f,"
+                      "TOO HOT, should be less than 180" 
+                      % (self.id_, self.setpoint_))
+            return
+        self.setpoint_ = value
         log.debug("Set Temperature Controller %d setpoint -> %f"
                   % (self.id_, self.setpoint_))
-        self.setpoint_ = value
-
+        cmd = self.cmd_lookup['TemperatureControllers']['set_setpoint'][self.id_](value)
+        self.comproc.run_cmd(cmd)
+        
     setpoint = property(get_setpoint, set_setpoint,
                         doc="Set the temperature controller setpoint")
 
     def get_temperature(self):
         log.debug("Get Temperature Controller %d temperature -> %f"
                   % (self.id_, self.temperature_))
+        self.temperature_ = self.status.Thermocouples[self.id_]['temperature']
         return self.temperature_
 
     temperature = property(get_temperature,
@@ -233,18 +318,27 @@ class TemperatureController(SynthesizerObject):
     def get_on(self):
         log.debug("Get Temperature Controller %d on -> %s"
                   % (self.id_, self.on_))
+        errcode = self.status.TemperatureControllers[0]['error_code']
+        if errcode == '\x01':
+            self.on_ = True
+        else:
+            self.on_ = False
         return self.on_
 
     def set_on(self, value):
         log.debug("Set Temperature Controller %d on -> %s"
                   % (self.id_, value))
         self.on_ = value
-
+        if self.on_ is True:
+            cmd = self.cmd_lookup['TemperatureControllers']['turn_on'][self.id_]()
+        else:
+            cmd = self.cmd_lookup['TemperatureControllers']['turn_off'][self.id_]()
+        self.comproc.run_cmd(cmd)
     on = property(get_on, set_on,
-                  doc="Turn temperature controller on")
+                  doc="Turn temperature controller on/off")
 
 
-class SMCInterface(SynthesizerObject):
+class SMCInterface(SynthesizerSubObject):
     """ The pressure regulators and vacuum regulators
     allow he users to set the the pressures internal to the unit.
     This object allows you to read the raw ADC and set the DAC
@@ -253,32 +347,44 @@ class SMCInterface(SynthesizerObject):
     """
     def __init__(self, id):
         super(SMCInterface, self).__init__(id, "SMCInterfaces")
-        self.analog_out_ = 0
-        self.analog_in_ = 2.5
+        self.analog_out_ = 0        
 
     def set_analog_out(self, value):
+        if not(value >= 0.0 and value <= 10.0):
+            # Should raise exception in future!!!!
+            log.error("SMC Analog setpoint (%f) out of range" % value)
+            return
+        self.comproc.run_cmd(self.cmd_lookup['SMCInterfaces']['set_analog_out'][self.id_](value))
         log.debug("Set SMC Analog out %d on -> %s"
                   % (self.id_, value))
+        
         self.analog_out_ = value
 
     def get_analog_out(self):
         log.debug("Get SMC Analog out %d on -> %s"
                   % (self.id_, self.analog_out_))
+        self.analog_out_ = self.status.SMCInterfaces[self.id_]['analog_out']
         return self.analog_out_
 
     analog_out = property(get_analog_out, set_analog_out,
                           doc="Set the analog out 0-10V")
 
-    def get_analog_in(self):
+    def get_analog_in(self):        
+        vref = self.sysconf['SMCInterfaces']['analog_in_vref'] # Depends on gain set on board!
+        self.analog_in_ = self.status.SMCInterfaces[self.id_]['analog_in']
+        log.debug("Get SMC RAW Analog in %d on -> %s"
+                  % (self.id_, self.analog_in_))
+        log.debug("VREF: %f" % vref)
+        self.analog_in_ = self.analog_in_ / 4096.0 * vref
         log.debug("Get SMC Analog in %d on -> %s"
                   % (self.id_, self.analog_in_))
         return self.analog_in_
-
+        
     analog_in = property(get_analog_in,
                          doc="Get the analog in 0-5V")
 
 
-class Fan(SynthesizerObject):
+class Fan(SynthesizerSubObject):
     """ Elixys can get hot, lets help it blow off
     some steam by enabling or disabling the fans
     """
@@ -295,12 +401,20 @@ class Fan(SynthesizerObject):
         log.debug("Set Fan %d on -> %s"
                   % (self.id_, value))
         self.on_ = value
-
+        if value is True:
+            cmd = self.cmd_lookup['Fans']['turn_on'][self.id_]()
+            log.debug("Turn On")
+        else:
+            log.debug("Turn Off")
+            cmd = self.cmd_lookup['Fans']['turn_off'][self.id_]()
+        
+        self.comproc.run_cmd(cmd)
+        
     on = property(get_on, set_on,
-                  doc="Turn on fan")
+                  doc="Turn on/off fan")
 
 
-class LinearActuator(SynthesizerObject):
+class LinearActuator(SynthesizerSubObject):
     """ The system has multiple linear actuators that
     can have their positions set, and read.
     """
@@ -334,7 +448,7 @@ class LinearActuator(SynthesizerObject):
                     doc="Tell the axis to home")
 
 
-class DigitalInput(SynthesizerObject):
+class DigitalInput(SynthesizerSubObject):
     """ The pneumatically controlled axis have up/down
     sensors for feedback on position.
     """
@@ -342,16 +456,26 @@ class DigitalInput(SynthesizerObject):
         super(DigitalInput, self).__init__(id, "DigitalInputs")
         self.tripped_ = False
 
-    def get_tripped(self):
+    def get_tripped(self):        
+        self.state_ = self.status.DigitalInputs['state']
+        self.tripped_ = not bool(self.state_ >> self.id_ & 1)
         log.debug("Get Digital input %d tripped -> %s"
                   % (self.id_, self.tripped_))
         return self.tripped_
 
     tripped = property(get_tripped,
                        doc="Check if position sensor tripped")
+    
+    def all(self):
+        self.state_ = self.status.DigitalInputs['state']               
+        self.all_state_ = [not bool(self.state_ >> sensorbit & 1) 
+            for sensorbit in range(self.sysconf['DigitalInputs']['count'])]
+        log.debug("Get Digital input %d tripped -> %s"
+                  % (self.id_, self.tripped_))
+        return self.all_state_
+        
 
-
-class LiquidSensor(SynthesizerObject):
+class LiquidSensor(SynthesizerSubObject):
     """ Liquid sensors can be used as feedback on
     the processes
     """
@@ -360,19 +484,23 @@ class LiquidSensor(SynthesizerObject):
         self.analog_out_ = 0
 
     def get_analog_out(self):
+        self.analog_out_ = self.status.LiquidSensors[self.id_]['analog_in'] / 4095.0
         log.debug("Get Liquid Sensor Analog in %d on -> %s"
-                  % (self.id_, self.analog_in_))
+                  % (self.id_, self.analog_out_))                  
         return self.analog_out_
 
     analog_out = property(get_analog_out,
                           doc="Liquid sensor ADC value")
 
 
-class SynthesizerHAL(ElixysObject):
+class SynthesizerHAL(SynthesizerObject):
     """ The is the Synthesizer object giving
     access to all the sub systems.
     """
     def __init__(self):
+        
+        super(SynthesizerHAL, self).__init__()        
+        
         log.debug("Initializing SynthesizerHAL")
         self.mixer_motors = [Mixer(i) for i in
                              range(self.sysconf['Mixers']['count'])]
@@ -405,3 +533,7 @@ class SynthesizerHAL(ElixysObject):
 
         self.liquid_sensors = [LiquidSensor(i) for i in
                                range(self.sysconf['LiquidSensors']['count'])]
+        self.start_com_proc()
+        
+if __name__ == '__main__':
+    s = SynthesizerHAL()

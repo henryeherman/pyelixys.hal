@@ -13,7 +13,7 @@ class Command(ElixysObject):
     to the websocket command queue for transmission to
     the synthesizer hardware """
     
-    def __init__(self, sub_system, cmd_name, cmd_id, device_id=None, parameter=0):
+    def __init__(self, sub_system, cmd_name, cmd_id, device_id=None, parameter="\x00"):
         self.sub_system = sub_system
         self.cmd_name = cmd_name
         self.cmd_id = cmd_id
@@ -75,9 +75,14 @@ class Command(ElixysObject):
                                          self.device_id,
                                          self.param)
         except struct.error:
-            cmd_pkt =  self.struct_.pack(self.cmd_id[0],
+		    try:
+			    cmd_pkt =  self.struct_.pack(self.cmd_id[0],
                                          self.device_id,
                                          *self.param)
+		    except TypeError as e:
+			    cmd_pkt = None
+			    raise ElixysValueError("Bad parameter: %s" % e)
+			
         return cmd_pkt        
     
     def get_fmt_str(self):
