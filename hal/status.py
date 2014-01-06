@@ -47,9 +47,9 @@ class Status(ElixysObject, collections.MutableMapping):
         return val
 
     def __setitem__(self, key, value):
-        raise ElixysReadOnlyError("Status Packet only updated"
-                                  "by new packet from hardware")
-        #self.store[self.__keytransform__(key)] = value
+        #raise ElixysReadOnlyError("Status Packet only updated"
+        #                          "by new packet from hardware")
+        self.store[self.__keytransform__(key)] = value
 
     def __delitem__(self, key):
         self.lock.acquire()
