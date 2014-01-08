@@ -10,11 +10,23 @@ Developing with pyelixys
 First you should install python and virtualenv.
 ```bash
 pip install virtualenv
+```
+Now setup the pyelixys sandbox environment
+```bash
 virtualenv pyelixys
 cd pyelixys
+```
+Active the sandbox environment
+```bash
 source bin/activate
+```
+Clone the repository
+```bash
 git clone git@github.com:henryeherman/pyelixys.git
 cd pyelixys
+```
+Install the python dependencies using pip
+```bash
 pip install -r requirements.txt
 ```
 
