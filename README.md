@@ -1,9 +1,9 @@
 Elixys Hardware Software API
 ==============================================
 pyelixys is a library for communicating with the Sofie Biosciences [sofiebiolink]
-Elixys hardware [elixyslink].  The the hardware is a design based upon the mbed 
-development board [mbedlink].  It communicates with the hardware using the 
-websocket protocol [websocketlink].  This library abstracts the hardware to python objects.
+[Elixys hardware][elixyslink].  The the hardware is a design based upon the [mbed 
+development board][mbedlink].  It communicates with the hardware using the 
+[websocket protocol][websocketlink].  This library abstracts the hardware to python objects.
 
 Developing with pyelixys
 ------------------------
