@@ -4,8 +4,11 @@ import signal
 import thread
 sys.path.append("./")
 sys.path.append("../")
-from status import Status
 
+import websocket
+from websocket import ABNF
+
+from status import Status
 from elixysobject import ElixysObject
 
 
@@ -188,7 +191,63 @@ class ElixysSimulator(ElixysObject):
     def __init__(self):
         self.stat = StatusSimulator()
 
+e = ElixysSimulator()
+simstatus = e.stat
+
+def on_message(ws, message):
+    """ When test client receives a command print it to console """
+
+    print "FROM SERVER: %s" % repr(message)
+
+
+def on_error(ws, error):
+    """ If we have a communication error print it to console """
+
+    print error
+
+
+def on_close(ws):
+    """ If websocket hardware server closes the connection print to console """
+    print "### closed ###"
+
+
+def on_open(ws):
+    """ On opening a new connection to the websocket server take the
+    test_data increment the packet_id and send it to the server as
+    a status packet.  This is done in a thread so the main thread
+    can still receive the incoming command packets and print them to
+    the console """
+    i = 0
+    def run(*args):
+        i = 0
+        while True:
+            #print "Sent packet id: #%d" % i
+            pkt = e.stat.generate_packet()
+            ws.send(pkt, ABNF.OPCODE_BINARY)
+            time.sleep(.2)
+            i+=1
+        #ws.close()
+        #print "thread terminating..."
+    thread.start_new_thread(run, ())
+
+
+def exit_gracefully(signum, frame):
+    """ If requested by signal, exit gracefully """
+    print "Exit Gracefully, Ctrl+C pressed"
+    sys.exit(0)
+
+
 
 if __name__ == "__main__":
-    e = ElixysSimulator()
-    simstatus = e.stat
+
+    # Setup signal callback
+    signal.signal(signal.SIGINT, exit_gracefully)  
+
+     #websocket.enableTrace(True) # Enable for websocket trace!
+    ws = websocket.WebSocketApp("ws://localhost:8888/ws",
+                                on_message=on_message,
+                                on_error=on_error,
+                                on_close=on_close)
+    ws.on_open = on_open
+    thread.start_new_thread(ws.run_forever,())
+
