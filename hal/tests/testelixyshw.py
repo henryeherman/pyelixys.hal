@@ -190,6 +190,55 @@ class ElixysSimulator(ElixysObject):
 
     def __init__(self):
         self.stat = StatusSimulator()
+        self.cb_map = {}
+        
+        self.cb_map
+        
+    def run_callback(self, name=None, *args, **kwargs):
+        pass
+        #return func(*args, kwargs)
+
+    def mixers_set_period(self, devid, period):
+        pass
+
+    def mixers_set_duty_cycle(self, devid, duty):
+        pass
+
+    def valves_set_state0(self, devid, state):
+        pass
+
+    def valves_set_state1(self, devid, state):
+        pass
+
+    def valves_set_state2(self, devid, state):
+        pass
+
+    def tempctrl_set_setpoint(self, devid, value):
+        pass
+
+    def tempctrl_turn_on(self, devid, value=None):
+        pass
+
+    def tempctrl_turn_off(self, devid, value=None):
+        pass
+
+    def smcinterfaces_set_analog_out(self, devid, value):
+        pass
+
+    def fans_turn_on(self, devid, value=None):
+        pass
+
+    def fans_turn_off(self, devid, value=None):
+        pass
+
+    def linacts_set_requested_position(self, devid, position):
+        pass
+
+    def linacts_home_axis(self, devid, value=None):
+        pass
+
+
+    
 
 e = ElixysSimulator()
 simstatus = e.stat
