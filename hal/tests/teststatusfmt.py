@@ -1,4 +1,6 @@
 import sys
+sys.path.append("./")
+sys.path.append("../")
 import unittest
 from statusfmt import StatusMessageFormatFactory
 
@@ -10,9 +12,13 @@ class StatusMessageFormatFactoryTest(unittest.TestCase):
         """ Create some test data """
         statmsgfmt = StatusMessageFormatFactory()
         self.statstruct = statmsgfmt.get_struct()
-        from pktdata import test_data, test_packet
-        self.test_data = test_data
-        self.test_packet = test_packet
+        from testelixyshw import StatusSimulator 
+        self.status = StatusSimulator()
+        
+        self.test_data = self.status.generate_packet_data()
+        self.test_packet = self.status.generate_packet()
+
+
 
     def test_unpack(self):
         data = self.statstruct.unpack(self.test_packet)

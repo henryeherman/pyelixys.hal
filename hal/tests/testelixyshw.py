@@ -192,8 +192,72 @@ class ElixysSimulator(ElixysObject):
         self.stat = StatusSimulator()
         self.cb_map = {}
         
-        self.cb_map
         
+        # Setup Callbacks for Mixer commands
+        self.register_callback('Mixers',
+                               'set_period', 
+                               self.mixers_set_period)
+        
+        self.register_callback('Mixers',
+                               'set_duty_cycle',
+                               self.mixers_set_duty_cycle)
+        
+        # Setup Callbacks for Valve commands
+        self.register_callback('Valves',
+                               'set_state0',
+                               self.valves_set_state0)
+
+        self.register_callback('Valves',
+                               'set_state1',
+                               self.valves_set_state1)
+        
+        self.register_callback('Valves',
+                               'set_state2',
+                               self.valves_set_state2)
+
+        # Setup Callbacks for Temperature controllers
+        self.register_callback('TemperatureControllers',
+                               'set_setpoint',
+                               self.tempctrl_set_setpoint)
+        
+        self.register_callback('TemperatureControllers',
+                               'turn_on',
+                               self.tempctrl_turn_on)
+ 
+        self.register_callback('TemperatureControllers',
+                               'turn_off',
+                               self.tempctrl_turn_off)
+ 
+        # Setup Callbacks for SMC Intrefaces
+        self.register_callback('SMCInterfaces',
+                               'set_analog_out',
+                               self.smcinterfaces_set_analog_out)
+        
+        # Setup Callbacks for Fans
+        self.register_callback('Fans',
+                               'turn_on',
+                               self.fans_turn_on)
+
+        self.register_callback('Fans',
+                               'turn_off',
+                               self.fans_turn_off)
+
+
+        self.register_callback('LinearActuators',
+                               'set_requested_position',
+                               self.linacts_set_requested_position)
+
+        self.register_callback('LinearActuators',
+                               'home_axis',
+                               self.linacts_home_axis)
+
+    def register_callback(self,sub_sys,cmd_name, fxn):
+        cmd_id, param_fmt = self.lookup_cmd(sub_sys,cmd_name)
+        self.cb_map[cmd_id] = (fxn, param_fmt)
+
+    def lookup_cmd(self, sub_sys, cmd_name):
+        return self.sysconf[sub_sys]['Commands'][cmd_name]
+
     def run_callback(self, name=None, *args, **kwargs):
         pass
         #return func(*args, kwargs)
