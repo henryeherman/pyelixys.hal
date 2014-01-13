@@ -2,6 +2,8 @@ import sys
 import time
 import signal
 import thread
+import struct
+import Queue
 sys.path.append("./")
 sys.path.append("../")
 
@@ -16,7 +18,20 @@ from elixysobject import ElixysObject
 import collections
 
 class StatusSimulator(Status):
+    """
+    The StatusSimulator object is intended to 
+    act like a status object but can also generate
+    the proper binary "packet" format that the HW
+    generates.  The ElxiysSimulator uses it to keep
+    track of its simulate HW state, and then
+    generate properly formatted packets to ship
+    to the host
+    """
     def __init__(self, *args, **kwargs):
+        """
+        Initialize the status with values we would expect when
+        the HW first turns on
+        """
         super(StatusSimulator, self).__init__(self, *args, **kwargs)
  
         self.is_valid = True 
@@ -148,6 +163,13 @@ class StatusSimulator(Status):
 
 
     def generate_packet_data(self):
+        """ This function reads the current state
+        and then formats it properly to send to the host
+        via the websocket protocol.  This format is 'binary'
+        and so it is essential to get right!! Or the 
+        host will get invalid data.  To do this we read the proper 
+        format from the config file (see sysconf on the ElixysObject)
+        """
         subs = self.fmt.subsystems
         vals = []
         for subname, subcount, subvals in subs:            
@@ -179,6 +201,10 @@ class StatusSimulator(Status):
             
 
     def generate_packet(self):
+        """ Take the data from which we properly arranged
+        and pack it properly to produce our "binary" packet.
+        Ship it to the host for to convert back to python types!
+        """
         data = self.generate_packet_data()
         fmtstruct = self.fmt.get_struct()
         return fmtstruct.pack(*data)
@@ -187,8 +213,18 @@ class StatusSimulator(Status):
         
 
 class ElixysSimulator(ElixysObject):
+    """ The ElixysSimulator object reads the incoming packets
+    from the host/user and updates its state appropriately
+    This object has the proper methods on it to simulate
+    the HW.  These methods are registered to react to
+    the proper commands coming in from the host/user
+    """
 
     def __init__(self):
+        """ The ElixysSimulator initializes its
+        status and then registers the callbacks to be executed
+        when the commands come in from the host/user
+        """
         self.stat = StatusSimulator()
         self.cb_map = {}
         
@@ -242,7 +278,7 @@ class ElixysSimulator(ElixysObject):
                                'turn_off',
                                self.fans_turn_off)
 
-
+        # Setup Callback for Linear Actuators
         self.register_callback('LinearActuators',
                                'set_requested_position',
                                self.linacts_set_requested_position)
@@ -250,17 +286,74 @@ class ElixysSimulator(ElixysObject):
         self.register_callback('LinearActuators',
                                'home_axis',
                                self.linacts_home_axis)
+    
+    def parse_cmd(self, cmd_pkt):
+        """
+        Parse the cmd sent from the host
+        Expect little endian
+        -first integer is the cmd_id
+        -second integer is the device_id
+            You can think of this as a 2 integer long register we are writing too
+        - the parameter type is variable, 
+            so we look it up and get the callback fxn that will change
+            the proper state variable (or start a thread that will simulate
+            some HW change)
+        """
+        # Create struct for unpacking the cmd_id and dev_id
+        cmd_id_struct = struct.Struct("<ii")
+        
+        # Length of the packet
+        len_cmd_id = cmd_id_struct.size
+
+        # Extract cmd_id and dev_id
+        cmd_id, dev_id = cmd_id_struct.unpack(cmd_pkt[:len_cmd_id])
+        print "CMDID:#%d|DEVID:#%d" % (cmd_id, dev_id)
+
+        # Look up callback and parameter type
+        cb, param_fmt_str = self.cb_map[cmd_id]
+
+        # Create struct to unpack the parameter
+        param_struct = struct.Struct(param_fmt_str)
+        
+        # Unpack paramter depending on expected type
+        param = param_struct.unpack(cmd_pkt[len_cmd_id:])
+        print "PARAM:%s" % param
+
+        # Return the cb fxn, the dev_id and the param
+        # Something else can pass the dev_id and param in to callback
+        # This simulates some HW action as a result of a user/host command
+        return (cb, dev_id, param)
+
 
     def register_callback(self,sub_sys,cmd_name, fxn):
+        """ This method is a shortcut for regestering
+        a callback with some subsystem and cmd name
+        """
         cmd_id, param_fmt = self.lookup_cmd(sub_sys,cmd_name)
         self.cb_map[cmd_id] = (fxn, param_fmt)
 
     def lookup_cmd(self, sub_sys, cmd_name):
+        """
+        Just a shortcut for getting the commands infor
+        associated with a sub_system (think "Mixers") 
+        and a cmd name (this will return some integer and 
+        parameter expected format!
+        """
         return self.sysconf[sub_sys]['Commands'][cmd_name]
 
-    def run_callback(self, name=None, *args, **kwargs):
-        pass
-        #return func(*args, kwargs)
+    def run_callback(self, cmdpkt):
+        """
+        When a command comes in from the user/host
+        this fxn is used to properly parse 
+        the packet and execute the proper callback
+        """
+
+        print "Execute PKT: %s" % repr(cmdpkt)
+
+        # Determine callback to exectue
+        cmdfxn, dev_id, param = self.parse_cmd(cmdpkt)
+        # Execute the callback
+        cmdfxn(dev_id, *param)
 
     def mixers_set_period(self, devid, period):
         pass
@@ -269,13 +362,13 @@ class ElixysSimulator(ElixysObject):
         pass
 
     def valves_set_state0(self, devid, state):
-        pass
+        self.stat.Valves['state0'] = state
 
     def valves_set_state1(self, devid, state):
-        pass
+        self.stat.Valves['state1'] = state
 
     def valves_set_state2(self, devid, state):
-        pass
+        self.stat.Valves['state2'] = state
 
     def tempctrl_set_setpoint(self, devid, value):
         pass
@@ -307,11 +400,14 @@ class ElixysSimulator(ElixysObject):
 e = ElixysSimulator()
 simstatus = e.stat
 
+cmds = Queue.Queue()
+
 def on_message(ws, message):
     """ When test client receives a command print it to console """
 
     print "FROM SERVER: %s" % repr(message)
-
+    #cmds.put(message)
+    e.run_callback(message)
 
 def on_error(ws, error):
     """ If we have a communication error print it to console """
