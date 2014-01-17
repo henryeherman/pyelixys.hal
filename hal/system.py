@@ -11,8 +11,9 @@ sys.path.append("../")
 sys.path.append("./")
 from hwconf import config
 from logs import hallog as log
-from hal import SynthesizerObject
+from hal import SynthesizerHAL
 from elixysobject import ElixysObject
+import time
 
 class SystemObject(ElixysObject):
     """ All higher level systems inherit
@@ -106,8 +107,9 @@ class Stopcock(SystemObject):
     """ The Elixys system has nine stopcock valves,
     three per reactor. It is possible to turn them clockwise
     or counter clockwise, and check the state. """
-    def __init__(self, synthesizer):
+    def __init__(self, devid, synthesizer):
         super(Stopcock, self).__init__(synthesizer)
+        self.id_ = devid
 
     def turn_clockwise(self):
         """ Turn the stopcock clockwise """
@@ -137,16 +139,36 @@ class Reactor(SystemObject):
     and a pnuematic actuator. These sub-features
     can be controller via this object.
     """
-    def __init__(self, synthesizer):
+    def __init__(self, devid, synthesizer):
         super(Reactor, self).__init__(synthesizer)
+        self.id_ = devid
+        self._up_valve_id = self.conf['Valves']['up']
+        self._down_valve_id = self.conf['Valves']['down']
+        self._up_sensor_id = self.conf['Sensors']['up']
+        self._down_sensor_id = self.conf['Sensors']['down']
+    
+    def get_conf(self):
+        return self.sysconf['Reactors']['Reactor%d' % self.id_]                
+
+    conf = property(get_conf)
 
     def lift(self):
         """ Move the reactor up """
-        pass
+        log.debug("Reactor %d lift | Turn on valve:%d, Turn off valve:%d" % 
+                (self.id_, self._up_valve_id, self._down_valve_id))
+        self.synth.valves[self._down_valve_id].on = False
+        time.sleep(0.2)
+        self.synth.valves[self._up_valve_id].on = True
+
 
     def lower(self):
         """ Move the reactor down """
-        pass
+        log.debug("Reactor %d lower | Turn on valve:%d, Turn off valve:%d" % 
+                (self.id_, self._down_valve_id, self._up_valve_id))
+        self.synth.valves[self._up_valve_id].on = False
+        time.sleep(0.2)
+        self.synth.valves[self._down_valve_id].on = True
+
 
     def _is_up(self):
         """ Check if reactor is up """
@@ -169,10 +191,17 @@ class System(SystemObject):
     """
     def __init__(self, synthesizer):
         super(System, self).__init__(synthesizer)
+        reactors_conf = self.sysconf['Reactors']
+        self.reactors = []
+        for reactor_section in reactors_conf.sections:
+            reactor_id = reactors_conf[reactor_section]['id']
+            self.reactors.append(Reactor(reactor_id, synthesizer))
+
+
 
 def main():
     """ Main function called when executing this script """
-    synth = SynthesizerObject()
+    synth = SynthesizerHAL()
     system = System(synth)
     return system
 
