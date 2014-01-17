@@ -96,7 +96,7 @@ class GasTransfer(SystemObject):
     def start_transfer(self):
         """ Turn on the transfer valve """
         pass
- 
+
     def stop_transfer(self):
         """ Turn off the transfer valve """
         pass
@@ -109,19 +109,19 @@ class Stopcock(SystemObject):
     def __init__(self, synthesizer):
         super(Stopcock, self).__init__(synthesizer)
 
-    def turn_clockwise():
+    def turn_clockwise(self):
         """ Turn the stopcock clockwise """
         pass
 
-    def turn_counter_clockwise():
+    def turn_counter_clockwise(self):
         """ Turn the stopcock counter clockwise """
         pass
 
-    def _is_counter_clockwise():
+    def _is_counter_clockwise(self):
         """ Check if the stopcock is clockwise """
         pass
 
-    def _is_clockwise():
+    def _is_clockwise(self):
         """ Check if the stopcock is counter clockwise """
         pass
 
@@ -140,19 +140,19 @@ class Reactor(SystemObject):
     def __init__(self, synthesizer):
         super(Reactor, self).__init__(synthesizer)
 
-    def lift():
+    def lift(self):
         """ Move the reactor up """
         pass
- 
-    def lower():
+
+    def lower(self):
         """ Move the reactor down """
         pass
 
-    def _is_up():
+    def _is_up(self):
         """ Check if reactor is up """
         pass
 
-    def _is_down():
+    def _is_down(self):
         """ Check if reactor is down """
         pass
 
@@ -160,4 +160,21 @@ class Reactor(SystemObject):
     is_down = property(_is_down)
 
 class System(SystemObject):
+    """ The system object is an abstraction of the
+    elixys hardware and organizes the method calls
+    and status information so that a user can directly
+    access the hardware according to the physical
+    mechanisms on the synthesize, i.e. Reactors,
+    Gas Transfer, Gripper, Reagent Delivery, and etc.
+    """
+    def __init__(self, synthesizer):
+        super(System, self).__init__(synthesizer)
+
+def main():
+    """ Main function called when executing this script """
+    synth = SynthesizerObject()
+    system = System(synth)
+    return system
+
+if __name__ == '__main__':
     pass
