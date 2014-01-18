@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import sys
-from hwconf import config
-#from wsserver import status, wscomproc, cmd_lookup
+from pyelixys.hal.hwconf import config
 
 class ElixysObject(object):
     """Parent object for all elixys systems

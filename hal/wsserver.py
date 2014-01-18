@@ -8,11 +8,9 @@ from Queue import Empty
 import tornado.websocket
 import tornado.ioloop
 import tornado.web
-#import json
-from status import Status
-from cmds import cmd_lookup
-sys.path.append('../')
-from logs import wsslog as log
+from pyelixys.hal.status import Status
+from pyelixys.hal.cmds import cmd_lookup
+from pyelixys.logs import wsslog as log
 import datetime
 
 exit_event = Event()
@@ -252,10 +250,10 @@ if __name__ == "__main__":
     log.debug("Starting loop to check status")
     start_server()
     
-    #while(not exit_event.is_set()):
-    #    if status.is_valid:
-    #        print "Thermocouple 0 err_code= %x" % ord(status['Thermocouples'][0]['error_code'])
-    #    time.sleep(1.0)
-    #log.debug("Attempt to join wscomproc")
-    #wscomproc.join()
+    while(not exit_event.is_set()):
+        if status.is_valid:
+            print "Thermocouple 0 err_code= %x" % ord(status['Thermocouples'][0]['error_code'])
+        time.sleep(1.0)
+    log.debug("Attempt to join wscomproc")
+    wscomproc.join()
     

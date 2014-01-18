@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 import sys
-from hwconf import config
-sys.path.append("../")
-from logs import hallog as log
-from elixysobject import ElixysObject
-from wsserver import wscomproc, status, cmd_lookup
+from pyelixys.hal.hwconf import config
+from pyelixys.logs import hallog as log
+from pyelixys.hal.elixysobject import ElixysObject
+from pyelixys.hal.wsserver import wscomproc, status, cmd_lookup
 
 # All set_methods will send commands to hardware to change state
 # they will not return (block( until hardware reflects changes,
@@ -466,6 +465,12 @@ class DigitalInput(SynthesizerSubObject):
     tripped = property(get_tripped,
                        doc="Check if position sensor tripped")
     
+    def __nonzero__(self):
+        return self.tripped
+
+    def __bool__(self):
+        return self.__nonzero__()
+
     def all(self):
         self.state_ = self.status.DigitalInputs['state']               
         self.all_state_ = [not bool(self.state_ >> sensorbit & 1) 
