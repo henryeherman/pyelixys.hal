@@ -2,9 +2,8 @@
 import sys
 import struct
 import copy
-sys.path.append("../")
-from elixysobject import ElixysObject
-from elixysexceptions import ElixysValueError
+from pyelixys.hal.elixysobject import ElixysObject
+from pyelixys.elixysexceptions import ElixysValueError
 
 
 class Command(ElixysObject):

@@ -2,14 +2,11 @@ import sys
 import time
 import signal
 import thread
-sys.path.append("./")
-sys.path.append("../")
-import pktdata
 import websocket
 from websocket import ABNF
-import status
+from pyelixys.hal.status import Status
 
-stat = status.Status()
+stat = Status()
 
 
 def on_message(ws, message):

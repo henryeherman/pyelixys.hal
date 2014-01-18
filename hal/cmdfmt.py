@@ -9,10 +9,8 @@ elixys websocket hardware server
 import sys
 import struct
 import jinja2
-sys.path.append("../")
-sys.path.append("./")
-from fmt_lookup import fmt_chr
-from elixysobject import ElixysObject
+from pyelixys.hal.fmt_lookup import fmt_chr
+from pyelixys.hal.elixysobject import ElixysObject
 
 
 class CommandFormatFactory(ElixysObject):

@@ -4,14 +4,12 @@ import signal
 import thread
 import struct
 import Queue
-sys.path.append("./")
-sys.path.append("../")
 
 import websocket
 from websocket import ABNF
 
-from status import Status
-from elixysobject import ElixysObject
+from pyelixys.hal.status import Status
+from pyelixys.hal.elixysobject import ElixysObject
 
 
 
@@ -458,5 +456,5 @@ if __name__ == "__main__":
                                 on_error=on_error,
                                 on_close=on_close)
     ws.on_open = on_open
-    thread.start_new_thread(ws.run_forever,())
+    hwthread = thread.start_new_thread(ws.run_forever,())
 
