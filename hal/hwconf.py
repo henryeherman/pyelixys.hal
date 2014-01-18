@@ -30,8 +30,24 @@ def command_check(vals):
     return cmdint, fmtchr
     #raise ValidateError('A list was passed when an email address was expected')
     
-configspec = "hwconfspec.ini"
-configfile = "hwconf.ini"
+def list3ints_check(vals):
+    # Validates that we recieve a list of 3 ints
+    # print "Running list of 3 ints validation"
+    if len(vals) != 3:
+        raise ValidateError("Expecting a list of 3 integers.  Did not receive 3 integers.")
+
+    try:
+        idxs = [int(val) for val in vals]
+    except ValueError:
+        raise ValidateError("List should be of integers!")
+    
+    return idxs
+
+
+configspec = "pyelixys\hal\hwconfspec.ini"
+configfile = "pyelixys\hal\hwconf.ini"
 config = ConfigObj(configfile, configspec=configspec)
-validator = Validator({'command': command_check})
+validator = Validator({'command': command_check,
+                       'list3ints': list3ints_check})
 results = config.validate(validator,preserve_errors=True)
+

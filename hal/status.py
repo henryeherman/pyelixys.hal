@@ -4,12 +4,11 @@ import time
 import threading
 import collections
 from Queue import Empty
-sys.path.append("../")
-from statusfmt import StatusMessageFormatFactory
-from elixysexceptions import ElixysValueError
-from elixysobject import ElixysObject
-from utils.elixysthread import ElixysStoppableThread
-from logs import statlog as log
+from pyelixys.hal.statusfmt import StatusMessageFormatFactory
+from pyelixys.elixysexceptions import ElixysValueError
+from pyelixys.hal.elixysobject import ElixysObject
+from pyelixys.utils.elixysthread import ElixysStoppableThread
+from pyelixys.logs import statlog as log
 
 
 class ElixysReadOnlyError(ElixysValueError):
@@ -112,5 +111,6 @@ class Status(ElixysObject, collections.MutableMapping):
 status = Status()
 
 if __name__ == '__main__':
-    from tests import pktdata    
+    pass
+    #from tests import pktdata    
     #data = status.parse_packet(pktdata.test_packet)
