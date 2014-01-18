@@ -187,6 +187,14 @@ class Reactor(SystemObject):
         self._down_valve_id = self.conf['Valves']['down']
         self._up_sensor_id = self.conf['Sensors']['up']
         self._down_sensor_id = self.conf['Sensors']['down']
+        
+        stopcock_conf = self.sysconf['Stopcocks'].sections
+        self.stopcocks = []
+        for stopcock_section in stopcock_conf.sections:
+            stopcock_id = stopcock_conf[stopcock_section]
+            self.append(Stopcock(stopcock_id, synthesizer))
+
+
 
     def get_conf(self):
         """ Get the reactor config for reactor with this id"""
@@ -235,6 +243,14 @@ class ReagentRobot(SystemObject):
         self.gas_transfer = GasTransfer(synthesizer)
         self.gripper = Gripper(synthesizer)
 
+
+class F18(SystemObject):
+    """ F18 object controls the enterance of F18
+    into the synthesizer.  A valve pressurizes a vessel,
+    while a stopcock valve control the path, either waste 
+    or the reactor 1 vial.
+    """
+    pass
 
 class System(SystemObject):
     """ The system object is an abstraction of the
