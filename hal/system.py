@@ -18,7 +18,8 @@ import time
 class SystemObject(ElixysObject):
     """ All higher level systems inherit
     from this object and gain access to the
-    Synthesizer abstraction of the hardware """
+    Synthesizer abstraction of the hardware
+    """
 
     def __init__(self, synthesizer):
         self.synth = synthesizer
@@ -30,22 +31,47 @@ class Gripper(SystemObject):
     """
     def __init__(self, synthesizer):
         super(Gripper, self).__init__(synthesizer)
+        self.conf = self.sysconf['Gripper']
+        self._open_valve_id = self.conf['Valves']['open']
+        self._close_valve_id = self.conf['Valves']['close']
+        self._up_valve_id = self.conf['Valves']['up']
+        self._down_valve_id = self.conf['Valves']['down']
 
     def open(self):
         """ Open the gripper """
-        pass
+        log.debug("Gripper Open | Turn on valve:%d, Turn off valve:%d" %
+                (self._open_valve_id, self._close_valve_id))
+        self.synth.valves[self._close_valve_id].on = False
+        time.sleep(0.2)
+        self.synth.valves[self._open_valve_id].on = True
+        time.sleep(0.2)
 
     def close(self):
         """ Close the gripper """
-        pass
+        log.debug("Gripper Close | Turn off valve:%d, Turn on valve:%d" %
+                (self._open_valve_id, self._close_valve_id))
+        self.synth.valves[self._open_valve_id].on = False
+        time.sleep(0.2)
+        self.synth.valves[self._close_valve_id].on = True
+        time.sleep(0.2)
 
     def lift(self):
         """ Move gripper up """
-        pass
+        log.debug("Gripper Lift | Turn off valve:%d, Turn on valve:%d" %
+                (self._down_valve_id, self._up_valve_id))
+        self.synth.valves[self._down_valve_id].on = False
+        time.sleep(0.2)
+        self.synth.valves[self._up_valve_id].on = True
+        time.sleep(0.2)
 
     def lower(self):
         """ Move the gripper down """
-        pass
+        log.debug("Gripper Lower | Turn off valve:%d, Turn on valve:%d" %
+                (self._up_valve_id, self._down_valve_id))
+        self.synth.valves[self._up_valve_id].on = False
+        time.sleep(0.2)
+        self.synth.valves[self._down_valve_id].on = True
+        time.sleep(0.2)
 
     def _is_open(self):
         """ Check if the gripper is open """
@@ -74,14 +100,28 @@ class GasTransfer(SystemObject):
     """
     def __init__(self, synthesizer):
         super(GasTransfer, self).__init__(synthesizer)
+        self.conf = self.sysconf['GasTransfer']
+        self._up_valve_id = self.conf['Valves']['up']
+        self._down_valve_id = self.conf['Valves']['down']
+        self._transfer_valve_id = self.conf['Valves']['transfer']
 
     def lift(self):
         """ Move the gas transfer axis up """
-        pass
+        log.debug("Gas Transfer Lift | Turn off valve:%d, Turn on valve:%d" %
+                (self._down_valve_id, self._up_valve_id))
+        self.synth.valves[self._down_valve_id].on = False
+        time.sleep(0.2)
+        self.synth.valves[self._up_valve_id].on = True
+        time.sleep(0.2)
 
     def lower(self):
         """ Move the gas transfer axis down """
-        pass
+        log.debug("Gas Transfer Lower | Turn off valve:%d, Turn on valve:%d" %
+                (self._up_valve_id, self._down_valve_id))
+        self.synth.valves[self._up_valve_id].on = False
+        time.sleep(0.2)
+        self.synth.valves[self._down_valve_id].on = True
+        time.sleep(0.2)
 
     def _is_up(self):
         """ Check that the actuator is up """
@@ -96,11 +136,13 @@ class GasTransfer(SystemObject):
 
     def start_transfer(self):
         """ Turn on the transfer valve """
-        pass
+        self.synth.valves[self._transfer_valve_id].on = True
+        time.sleep(0.2)
 
     def stop_transfer(self):
         """ Turn off the transfer valve """
-        pass
+        self.synth.valves[self._transfer_valve_id].on = False
+        time.sleep(0.2)
 
 
 class Stopcock(SystemObject):
@@ -131,7 +173,6 @@ class Stopcock(SystemObject):
     is_clockwise = property(_is_clockwise)
 
 
-
 class Reactor(SystemObject):
     """ The Elixys System has three reactors,
     each reactor is composed of 3 stopcocks,
@@ -146,15 +187,16 @@ class Reactor(SystemObject):
         self._down_valve_id = self.conf['Valves']['down']
         self._up_sensor_id = self.conf['Sensors']['up']
         self._down_sensor_id = self.conf['Sensors']['down']
-    
+
     def get_conf(self):
-        return self.sysconf['Reactors']['Reactor%d' % self.id_]                
+        """ Get the reactor config for reactor with this id"""
+        return self.sysconf['Reactors']['Reactor%d' % self.id_]
 
     conf = property(get_conf)
 
     def lift(self):
         """ Move the reactor up """
-        log.debug("Reactor %d lift | Turn on valve:%d, Turn off valve:%d" % 
+        log.debug("Reactor %d lift | Turn on valve:%d, Turn off valve:%d" %
                 (self.id_, self._up_valve_id, self._down_valve_id))
         self.synth.valves[self._down_valve_id].on = False
         time.sleep(0.2)
@@ -163,7 +205,7 @@ class Reactor(SystemObject):
 
     def lower(self):
         """ Move the reactor down """
-        log.debug("Reactor %d lower | Turn on valve:%d, Turn off valve:%d" % 
+        log.debug("Reactor %d lower | Turn on valve:%d, Turn off valve:%d" %
                 (self.id_, self._down_valve_id, self._up_valve_id))
         self.synth.valves[self._up_valve_id].on = False
         time.sleep(0.2)
@@ -181,6 +223,19 @@ class Reactor(SystemObject):
     is_up = property(_is_up)
     is_down = property(_is_down)
 
+
+class ReagentRobot(SystemObject):
+    """ The Elixys Reagent Robot allows the user to
+    select reagents using the gripper and gas transfer.
+    An X-Y table allows the selection of positions.
+    """
+    def __init__(self, synthesizer):
+        super(ReagentRobot, self).__init__(synthesizer)
+
+        self.gas_transfer = GasTransfer(synthesizer)
+        self.gripper = Gripper(synthesizer)
+
+
 class System(SystemObject):
     """ The system object is an abstraction of the
     elixys hardware and organizes the method calls
@@ -197,7 +252,7 @@ class System(SystemObject):
             reactor_id = reactors_conf[reactor_section]['id']
             self.reactors.append(Reactor(reactor_id, synthesizer))
 
-
+        self.reagent_robot = ReagentRobot(synthesizer)
 
 def main():
     """ Main function called when executing this script """
