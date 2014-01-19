@@ -18,3 +18,7 @@ class ElixysValidationError(ElixysError):
 
 class ElixysValueError(ElixysError, IndexError):
     pass
+
+
+class ElixysPneumaticError(ElixysHALError):
+    pass
