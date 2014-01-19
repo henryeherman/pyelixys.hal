@@ -1,3 +1,4 @@
+*.log
 *.vcd
 *.out
 *.swo
@@ -23,4 +24,3 @@ doc/build/*
 examples/build
 utils/build
 .DS_Store
-

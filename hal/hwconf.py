@@ -44,8 +44,8 @@ def list3ints_check(vals):
     return idxs
 
 
-configspec = "hwconfspec.ini"
-configfile = "hwconf.ini"
+configspec = "pyelixys\hal\hwconfspec.ini"
+configfile = "pyelixys\hal\hwconf.ini"
 config = ConfigObj(configfile, configspec=configspec)
 validator = Validator({'command': command_check,
                        'list3ints': list3ints_check})

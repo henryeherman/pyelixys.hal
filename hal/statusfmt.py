@@ -135,11 +135,10 @@ Additional information can be found in the comments below.
 # Error Code 4 unsigned int|'I'|4|0-4294967295
 
 
-from hwconf import config
 import struct
 import jinja2
-from fmt_lookup import fmt_chr
-
+from pyelixys.hal.fmt_lookup import fmt_chr
+from pyelixys.hal.hwconf import config
 
 class StatusMessageFormatFactory(object):
     """ Returns an object capable of generating struct
