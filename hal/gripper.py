@@ -68,7 +68,7 @@ class Gripper(PneumaticActuator):
             self.close_no_check()
             while self.timeout > datetime.now() - begintime:
                 time.sleep(0.1)
-                if self.is_close:
+                if self.is_closed:
                     log.debug("Close actuator %s success", repr(self))
                     return
             log.info("Failed to close actuator %s before timeout, retry %d",
