@@ -52,4 +52,7 @@ def main():
     return system
 
 if __name__ == '__main__':
-    pass
+    s = main()
+    from IPython import embed
+    embed()
+

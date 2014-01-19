@@ -1,3 +1,12 @@
+#/usr/bin/env python
+""" This script acts like the elixys hw
+it connects as a client to the websocket server
+and streams packets properly formed.
+It knows how to "act" like the hardware and has
+callbacks that cause changes to the system state,
+and consequently to the packets just as would
+on the real hardaware.
+"""
 import sys
 import time
 import signal
@@ -8,16 +17,17 @@ import Queue
 import websocket
 from websocket import ABNF
 
+from pyelixys.logs import hwsimlog as log
 from pyelixys.hal.status import Status
 from pyelixys.hal.elixysobject import ElixysObject
-
+from threading import Timer
 
 
 import collections
 
 class StatusSimulator(Status):
     """
-    The StatusSimulator object is intended to 
+    The StatusSimulator object is intended to
     act like a status object but can also generate
     the proper binary "packet" format that the HW
     generates.  The ElxiysSimulator uses it to keep
@@ -31,9 +41,11 @@ class StatusSimulator(Status):
         the HW first turns on
         """
         super(StatusSimulator, self).__init__(self, *args, **kwargs)
- 
-        self.is_valid = True 
-        
+
+        log.debug("Initialize The StatusSimulator")
+        self.is_valid = True
+
+        log.debug("Set the initial state of the system")
         # Initialize Header
         self.store['Header'] = {}
         self.store['Header']['packet_id'] = 0
@@ -47,7 +59,7 @@ class StatusSimulator(Status):
             mixer = {'duty_cycle':0.0, 'period': 0}
             self.store['Mixers'][i] = mixer
             mixers.append(mixer)
-        
+
         self.store['Mixers']['Subs'] = mixers
         self.store['Mixers']['count'] = \
                 self.sysconf['Mixers']['count']
@@ -87,7 +99,7 @@ class StatusSimulator(Status):
         self.store['AuxThermocouples']['Subs'] = auxthermocouples
         self.store['AuxThermocouples']['count'] = \
                 self.sysconf['AuxThermocouples']['count']
-         
+
         # Initialize heaters
         self['Heaters'] = {'state':0}
 
@@ -98,8 +110,8 @@ class StatusSimulator(Status):
             tempctrl = {'error_code':'\x00', 'setpoint':0.0}
             self.store['TemperatureControllers'][i] = tempctrl
             tempctrls.append(tempctrl)
-        
-        
+
+
         self.store['TemperatureControllers']['error_code'] = 0
         self.store['TemperatureControllers']['Subs'] = tempctrls
         self.store['TemperatureControllers']['count'] = \
@@ -113,12 +125,12 @@ class StatusSimulator(Status):
                             'analog_out':0.0}
             self.store['SMCInterfaces'][i] = smcinterface
             smcinterfaces.append(smcinterface)
-        
+
         self.store['SMCInterfaces']['Subs'] = smcinterfaces
         self.store['SMCInterfaces']['count'] = \
                 self.sysconf['SMCInterfaces']['count']
         self.store['SMCInterfaces']['error_code'] = '\x00'
- 
+
         # Initialize Fans
         self.store['Fans'] = {}
         self.store['Fans']['state'] = '\x01'
@@ -130,7 +142,7 @@ class StatusSimulator(Status):
             linact = {'error_code': 0,
                       'position': 0,
                       'requested_position':0}
-                    
+
             self.store['LinearActuators'][i] = linact
             linacts.append(linact)
 
@@ -141,8 +153,8 @@ class StatusSimulator(Status):
         # Initialize Digital Inputs
         self.store['DigitalInputs'] = {}
         self.store['DigitalInputs']['error_code'] = '\x00'
-        self.store['DigitalInputs']['state'] = 4095  
-        
+        self.store['DigitalInputs']['state'] = 4095
+
         # Initialize Liquid Sensors
         liqsensors = []
         self.store['LiquidSensors'] = {}
@@ -164,39 +176,39 @@ class StatusSimulator(Status):
         """ This function reads the current state
         and then formats it properly to send to the host
         via the websocket protocol.  This format is 'binary'
-        and so it is essential to get right!! Or the 
-        host will get invalid data.  To do this we read the proper 
+        and so it is essential to get right!! Or the
+        host will get invalid data.  To do this we read the proper
         format from the config file (see sysconf on the ElixysObject)
         """
         subs = self.fmt.subsystems
         vals = []
-        for subname, subcount, subvals in subs:            
+        for subname, subcount, subvals in subs:
             # Top Level params
             ## print "BEGIN:", subname
             topparams = subvals.keys()
-            ## print "TOPPARAMS", topparams 
+            ## print "TOPPARAMS", topparams
             repeat = False
             if "Repeat" in topparams:
                 ## print subname,"REPEAT"
-                repeat = True                
+                repeat = True
                 topparams.remove('Repeat')
 
-            ## print "TOPPARAMS", topparams 
+            ## print "TOPPARAMS", topparams
             if not topparams is None:
                 for topparam in topparams:
                     ## print subname,":",topparam
                     vals.append(self.store[subname][topparam])
-            
-            if "Repeat" in subvals:                
+
+            if "Repeat" in subvals:
                 for i in range(subcount):
-                    for subparam in subvals['Repeat'].keys():                    
+                    for subparam in subvals['Repeat'].keys():
                         vals.append(self.store[subname][i][subparam])
                     ## print subname,i,":", subcount, subvals['Repeat'].keys()
 
 
 
         return vals
-            
+
 
     def generate_packet(self):
         """ Take the data from which we properly arranged
@@ -207,8 +219,8 @@ class StatusSimulator(Status):
         fmtstruct = self.fmt.get_struct()
         return fmtstruct.pack(*data)
         #self.store[sub[0]]
-             
-        
+
+
 
 class ElixysSimulator(ElixysObject):
     """ The ElixysSimulator object reads the incoming packets
@@ -225,17 +237,18 @@ class ElixysSimulator(ElixysObject):
         """
         self.stat = StatusSimulator()
         self.cb_map = {}
-        
-        
+
+        log.debug("Initialize the ElixysSimulator, register callbacks")
+
         # Setup Callbacks for Mixer commands
         self.register_callback('Mixers',
-                               'set_period', 
+                               'set_period',
                                self.mixers_set_period)
-        
+
         self.register_callback('Mixers',
                                'set_duty_cycle',
                                self.mixers_set_duty_cycle)
-        
+
         # Setup Callbacks for Valve commands
         self.register_callback('Valves',
                                'set_state0',
@@ -244,7 +257,7 @@ class ElixysSimulator(ElixysObject):
         self.register_callback('Valves',
                                'set_state1',
                                self.valves_set_state1)
-        
+
         self.register_callback('Valves',
                                'set_state2',
                                self.valves_set_state2)
@@ -253,20 +266,20 @@ class ElixysSimulator(ElixysObject):
         self.register_callback('TemperatureControllers',
                                'set_setpoint',
                                self.tempctrl_set_setpoint)
-        
+
         self.register_callback('TemperatureControllers',
                                'turn_on',
                                self.tempctrl_turn_on)
- 
+
         self.register_callback('TemperatureControllers',
                                'turn_off',
                                self.tempctrl_turn_off)
- 
+
         # Setup Callbacks for SMC Intrefaces
         self.register_callback('SMCInterfaces',
                                'set_analog_out',
                                self.smcinterfaces_set_analog_out)
-        
+
         # Setup Callbacks for Fans
         self.register_callback('Fans',
                                'turn_on',
@@ -284,38 +297,39 @@ class ElixysSimulator(ElixysObject):
         self.register_callback('LinearActuators',
                                'home_axis',
                                self.linacts_home_axis)
-    
+
     def parse_cmd(self, cmd_pkt):
         """
         Parse the cmd sent from the host
         Expect little endian
         -first integer is the cmd_id
         -second integer is the device_id
-            You can think of this as a 2 integer long register we are writing too
-        - the parameter type is variable, 
+            You can think of this as a 2 integer
+            long register we are writing too
+        - the parameter type is variable,
             so we look it up and get the callback fxn that will change
             the proper state variable (or start a thread that will simulate
             some HW change)
         """
         # Create struct for unpacking the cmd_id and dev_id
         cmd_id_struct = struct.Struct("<ii")
-        
+
         # Length of the packet
         len_cmd_id = cmd_id_struct.size
 
         # Extract cmd_id and dev_id
         cmd_id, dev_id = cmd_id_struct.unpack(cmd_pkt[:len_cmd_id])
-        print "CMDID:#%d|DEVID:#%d" % (cmd_id, dev_id)
+        log.debug("CMDID:#%d|DEVID:#%d", cmd_id, dev_id)
 
         # Look up callback and parameter type
         cb, param_fmt_str = self.cb_map[cmd_id]
 
         # Create struct to unpack the parameter
         param_struct = struct.Struct(param_fmt_str)
-        
+
         # Unpack paramter depending on expected type
         param = param_struct.unpack(cmd_pkt[len_cmd_id:])
-        print "PARAM:%s" % param
+        log.debug("PARAM:%s", param)
 
         # Return the cb fxn, the dev_id and the param
         # Something else can pass the dev_id and param in to callback
@@ -333,8 +347,8 @@ class ElixysSimulator(ElixysObject):
     def lookup_cmd(self, sub_sys, cmd_name):
         """
         Just a shortcut for getting the commands infor
-        associated with a sub_system (think "Mixers") 
-        and a cmd name (this will return some integer and 
+        associated with a sub_system (think "Mixers")
+        and a cmd name (this will return some integer and
         parameter expected format!
         """
         return self.sysconf[sub_sys]['Commands'][cmd_name]
@@ -342,11 +356,11 @@ class ElixysSimulator(ElixysObject):
     def run_callback(self, cmdpkt):
         """
         When a command comes in from the user/host
-        this fxn is used to properly parse 
+        this fxn is used to properly parse
         the packet and execute the proper callback
         """
 
-        print "Execute PKT: %s" % repr(cmdpkt)
+        log.debug("Execute PKT: %s",repr(cmdpkt))
 
         # Determine callback to exectue
         cmdfxn, dev_id, param = self.parse_cmd(cmdpkt)
@@ -354,46 +368,147 @@ class ElixysSimulator(ElixysObject):
         cmdfxn(dev_id, *param)
 
     def mixers_set_period(self, devid, period):
-        pass
+        """ Mixer set period callback """
+        log.debug("Set mixer %d period = %d", devid, period)
 
     def mixers_set_duty_cycle(self, devid, duty):
-        pass
+        """ Mixer set the duty cycle """
+        log.debug("Set mixer %d duty cycle = %f", devid, duty)
 
     def valves_set_state0(self, devid, state):
+        """ Set valve state0 """
+        log.debug("Set valve state0 = %s", bin(state))
         self.stat.Valves['state0'] = state
+        self.update_digital_inputs()
 
     def valves_set_state1(self, devid, state):
+        """ Set valve state1 """
+        log.debug("Set valve state1 = %s", bin(state))
         self.stat.Valves['state1'] = state
+        self.update_digital_inputs()
 
     def valves_set_state2(self, devid, state):
+        """ Set valve state2 """
+        log.debug("Set valve state2 = %s", bin(state))
         self.stat.Valves['state2'] = state
 
     def tempctrl_set_setpoint(self, devid, value):
-        pass
+        """ Set temperature controller setpoint """
+        log.debug("Set temperature controller %d setpoint = %f",
+                    devid, value)
 
     def tempctrl_turn_on(self, devid, value=None):
-        pass
+        """ Turn temperature controller on """
+        log.debug("Turn on temperture controller %d", devid)
 
     def tempctrl_turn_off(self, devid, value=None):
-        pass
+        """ Turn off temperature controllers """
+        log.debug("Turn off temperature controller %d", devid)
 
     def smcinterfaces_set_analog_out(self, devid, value):
-        pass
+        """ SMC Interface set analog out """
+        log.debug(" SMC Interface %d set analog out = %f", devid, value)
 
     def fans_turn_on(self, devid, value=None):
-        pass
+        """ Fans turn on """
+        log.debug("Turn on Fan %d", devid)
 
     def fans_turn_off(self, devid, value=None):
-        pass
+        """ Fans turn off """
+        log.debug("Turn off Fan %d", devid)
 
     def linacts_set_requested_position(self, devid, position):
-        pass
+        """ Linear Actuator set requested position """
+        log.debug("Set the linear actuator %d requested position = %d",
+                    devid, position)
 
     def linacts_home_axis(self, devid, value=None):
-        pass
+        """ Linear Actuator home axis """
+        log.debug("Home the linear actuator %d", devid)
 
 
-    
+    def update_digital_inputs(self):
+        """ Evaluate the valve states and determine
+        expected digital input status
+        """
+
+        # Check for Reactor 0 down (DI 0)
+        if ((self.stat['Valves']['state0'] & (1 << 6)) and
+                not(self.stat['Valves']['state1'] & (1 << 6))):
+            log.debug("Reactor 0 will go down. DI0=True")
+            # immeadiately set DI 1
+            # Timer clear DI 0
+            # run timer to clear digital input 0
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1<<0)
+            Timer(2.0, fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1<<1)
+
+
+
+        # Check for Reactor 0 up (DI 1)
+        if ((self.stat['Valves']['state1'] & (1 << 6)) and
+                not(self.stat['Valves']['state0'] & (1 << 6))):
+            log.debug("Reactor 0 will go up. DI1=True")
+            # immeadiately set DI 0
+            # Timer clear DI 1
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1<<1)
+            Timer(2.0,fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1<<0)
+
+
+        # Check for Reactor 1 down (DI 3)
+        if ((self.stat['Valves']['state0'] & (1 << 5)) and
+                not(self.stat['Valves']['state1'] & (1 << 5))):
+            log.debug("Reactor 1 will go down. DI3=True")
+            # immeadiately set DI 1
+            # Timer clear DI 0
+            # run timer to clear digital input 0
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1<<3)
+            Timer(2.0, fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1<<2)
+
+
+
+        # Check for Reactor 1 up (DI 2)
+        if ((self.stat['Valves']['state1'] & (1 << 5)) and
+                not(self.stat['Valves']['state0'] & (1 << 5))):
+            log.debug("Reactor 1 will go up. DI2=True")
+            # immeadiately set DI 0
+            # Timer clear DI 1
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1<<2)
+            Timer(2.0,fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1<<3)
+
+
+        # Check for Reactor 2 down (DI 5)
+        if ((self.stat['Valves']['state0'] & (1 << 4)) and
+                not(self.stat['Valves']['state1'] & (1 << 4))):
+            log.debug("Reactor 1 will go down. DI3=True")
+            # immeadiately set DI 1
+            # Timer clear DI 0
+            # run timer to clear digital input 0
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1<<5)
+            Timer(2.0, fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1<<4)
+
+
+
+        # Check for Reactor 2 up (DI 4)
+        if ((self.stat['Valves']['state1'] & (1 << 4)) and
+                not(self.stat['Valves']['state0'] & (1 << 4))):
+            log.debug("Reactor 1 will go up. DI2=True")
+            # immeadiately set DI 0
+            # Timer clear DI 1
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1<<4)
+            Timer(2.0,fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1<<5)
+
 
 e = ElixysSimulator()
 simstatus = e.stat
@@ -448,9 +563,9 @@ def exit_gracefully(signum, frame):
 if __name__ == "__main__":
 
     # Setup signal callback
-    signal.signal(signal.SIGINT, exit_gracefully)  
+    signal.signal(signal.SIGINT, exit_gracefully)
 
-     #websocket.enableTrace(True) # Enable for websocket trace!
+    #websocket.enableTrace(True) # Enable for websocket trace!
     ws = websocket.WebSocketApp("ws://localhost:8888/ws",
                                 on_message=on_message,
                                 on_error=on_error,
@@ -458,3 +573,5 @@ if __name__ == "__main__":
     ws.on_open = on_open
     hwthread = thread.start_new_thread(ws.run_forever,())
 
+    from IPython import embed
+    embed()

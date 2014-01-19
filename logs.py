@@ -16,6 +16,12 @@ errorlog = logging.getLogger("elixys.err")
 errorlog.setLevel(logging.DEBUG)
 errorlog.addHandler(hdlr)
 
+
+hwsimlog = logging.getLogger("elixys.hwsim")
+hwsimlog.setLevel(logging.DEBUG)
+hwsimlog.addHandler(hdlr)
+
+
 wsfhdlr = logging.FileHandler("wsserver.log",mode='a')
 wsfhdlr.setLevel(logging.DEBUG)
 wsslog = logging.getLogger("elixys.wsserver")

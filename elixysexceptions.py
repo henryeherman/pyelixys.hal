@@ -22,3 +22,6 @@ class ElixysValueError(ElixysError, IndexError):
 
 class ElixysPneumaticError(ElixysHALError):
     pass
+
+class ElixysCommError(ElixysError):
+    pass

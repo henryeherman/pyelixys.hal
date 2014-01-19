@@ -1,11 +1,23 @@
 #!/usr/bin/env python
+""" The Status object is maintained by
+the websocket server.  The hardware connects
+to the websocket server and continously updates
+the state to match the state of the hardware.
+The Status object has a dictionary like interface,
+and all of the datatypes from the client are properly
+converted to their respective python datatypes,
+and attached to the Status object according to the
+the hwconf
+"""
 import sys
 import time
 import threading
 import collections
 from Queue import Empty
 from pyelixys.hal.statusfmt import StatusMessageFormatFactory
-from pyelixys.elixysexceptions import ElixysValueError
+from pyelixys.elixysexceptions import ElixysValueError, \
+                                        ElixysCommError
+
 from pyelixys.hal.elixysobject import ElixysObject
 from pyelixys.utils.elixysthread import ElixysStoppableThread
 from pyelixys.logs import statlog as log
@@ -16,19 +28,28 @@ class ElixysReadOnlyError(ElixysValueError):
 
 
 class StatusThread(ElixysStoppableThread):
+    """ The status thread is a consumer of packets from
+    the websocket server.  It continuously reads from the
+    queue and properly parse the packets into the Status object"""
     def __init__(self, status, status_queue):
         super(StatusThread, self).__init__()
         self.queue = status_queue
         self.status = status
-        
-    def loop(self):        
-        try:            
+
+    def loop(self):
+        """ Main loop, parse packet then wait some time """
+        try:
+            # todo timeout from hwconf
             statpkt = self.queue.get(block=False, timeout=0.1)
             self.status.parse_packet(statpkt)
         except Empty:
+            # todo sleep time from hwconf
             time.sleep(0.1)
 
 class Status(ElixysObject, collections.MutableMapping):
+    """ The Status object has a dictionary interface,
+    it is capable of properly parsing the binary packets from
+    the client hardware an converting them into python data types """
     def __init__(self, *args, **kwargs):
         self.fmt = StatusMessageFormatFactory()
         self.struct = self.fmt.get_struct()
@@ -64,7 +85,16 @@ class Status(ElixysObject, collections.MutableMapping):
     def __keytransform__(self, key):
         return key
 
+    def __getattr__(self, name):
+        if self.is_valid:
+            super(Status, self).__getattr__(self, name)
+        else:
+            raise ElixysCommError("The status packet is invalid, is a client connected?")
+
     def parse_packet(self, pkt):
+        """ Maybe the most complicates function, read the config and
+        properly parses the binary packet from the hardware accordingly """
+        #Todo: rework this, too complicated!
         subsystems = self.fmt.subsystems
         data = self.struct.unpack(pkt)
         data_dict = dict()
@@ -84,7 +114,7 @@ class Status(ElixysObject, collections.MutableMapping):
                     units = []
                     for i in range(count):
                         unit_dict = dict()
-                        for rkey, rval in rptmessagefmt.items():                            
+                        for rkey, rval in rptmessagefmt.items():
                             unit_dict[rkey] = data[data_idx]
                             #print rkey, data_idx
                             data_idx += 1
@@ -104,13 +134,14 @@ class Status(ElixysObject, collections.MutableMapping):
     def update_from_queue(self, queue):
         self.thread = StatusThread(self, queue)
         self.thread.start()
-        
+
     def stop_update(self):
-        self.thread.stop()        
-        
+        log.debug("Starting update thread")
+        self.thread.stop()
+
 status = Status()
 
 if __name__ == '__main__':
     pass
-    #from tests import pktdata    
+    #from tests import pktdata
     #data = status.parse_packet(pktdata.test_packet)
