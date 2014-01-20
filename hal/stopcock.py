@@ -1,15 +1,14 @@
-#!/usr/env python
+#!/usr/bin/env python
 """ The system model is the highest level
 of abstraction of the stopcock system.
-Everything should only access the stopcocks 
+Everything should only access the stopcocks
 access the this object, which is attached to the
 reactor objects.
-The sub system allows you to rotate the 
+The sub system allows you to rotate the
 stopcocks either clockwise or counter clockwise.
 """
 import time
 from pyelixys.logs import hallog as log
-from pyelixys.hal.hal import SynthesizerHAL
 from pyelixys.hal.systemobject import SystemObject
 
 

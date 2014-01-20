@@ -30,6 +30,15 @@ Install the python dependencies using pip
 pip install -r requirements.txt
 ```
 
+If installing on linux, you will need numpy.
+To install numpy in a virtualenv 
+requires the python dev
+package. Before installing the requirements with pip
+run the following command.
+```bash
+sudo apt-get install python2.7-dev
+```
+
 [mbedlink]: http://mbed.org/
 [sofiebiolink]: http://sofiebio.com/
 [elixyslink]: http://sofiebio.com/products/chemistry/
