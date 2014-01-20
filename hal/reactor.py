@@ -12,6 +12,7 @@ from pyelixys.hal.systemobject import SystemObject
 from pyelixys.hal.pneumaticactuator import PneumaticActuator
 from pyelixys.hal.stopcock import Stopcock
 from pyelixys.hal.tempctrl import TempCtrl
+from pyelixys.hal.mixer import Mixer
 from pyelixys.hal.f18 import F18
 from datetime import timedelta
 from datetime import datetime
@@ -43,6 +44,10 @@ class Reactor(PneumaticActuator):
         self._temp_ctrl_ids = self.conf['tempctrl_ids']
         self.temperature_controller = \
                 TempCtrl(self._temp_ctrl_ids, synthesizer)
+
+        # Intialize Mixer
+        self._mixer_id = self.conf['mixer_id']
+        self.mixer = Mixer(self._mixer_id, synthesizer)
 
     def _get_conf(self):
         """ Get the reactor config for reactor with this id"""
