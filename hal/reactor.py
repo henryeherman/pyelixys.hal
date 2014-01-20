@@ -11,6 +11,7 @@ from pyelixys.logs import hallog as log
 from pyelixys.hal.systemobject import SystemObject
 from pyelixys.hal.pneumaticactuator import PneumaticActuator
 from pyelixys.hal.stopcock import Stopcock
+from pyelixys.hal.tempctrl import TempCtrl
 from pyelixys.hal.f18 import F18
 from datetime import timedelta
 from datetime import datetime
@@ -25,7 +26,7 @@ class Reactor(PneumaticActuator):
     def __init__(self, devid, synthesizer):
         # First set device id so config is valid
         self.id_ = devid
-        
+
         # Initialize the pneumaticactuator and
         #  and systemobject
         super(Reactor, self).__init__(synthesizer)
@@ -37,6 +38,11 @@ class Reactor(PneumaticActuator):
 
         # Gain access to the F18 valve
         self.f18 = F18(synthesizer)
+
+        # Initialize the temp controller
+        self._temp_ctrl_ids = self.conf['tempctrl_ids']
+        self.temperature_controller = \
+                TempCtrl(self._temp_ctrl_ids, synthesizer)
 
     def _get_conf(self):
         """ Get the reactor config for reactor with this id"""

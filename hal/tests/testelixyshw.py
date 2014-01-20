@@ -298,6 +298,8 @@ class ElixysSimulator(ElixysObject):
                                'home_axis',
                                self.linacts_home_axis)
 
+        self.tempctrl_thread = thread.start_new_thread(self.run_tempctrls,())
+
     def parse_cmd(self, cmd_pkt):
         """
         Parse the cmd sent from the host
@@ -396,14 +398,17 @@ class ElixysSimulator(ElixysObject):
         """ Set temperature controller setpoint """
         log.debug("Set temperature controller %d setpoint = %f",
                     devid, value)
+        self.stat.TemperatureControllers[devid]['setpoint'] = value
 
     def tempctrl_turn_on(self, devid, value=None):
         """ Turn temperature controller on """
         log.debug("Turn on temperture controller %d", devid)
+        self.stat.TemperatureControllers[devid]['error_code'] = '\x01'
 
     def tempctrl_turn_off(self, devid, value=None):
         """ Turn off temperature controllers """
         log.debug("Turn off temperature controller %d", devid)
+        self.stat.TemperatureControllers[devid]['error_code'] = '\x00'
 
     def smcinterfaces_set_analog_out(self, devid, value):
         """ SMC Interface set analog out """
@@ -548,7 +553,27 @@ class ElixysSimulator(ElixysObject):
             Timer(0.2, fxn).start()
             self.stat['DigitalInputs']['state'] |= (1 << 10)
 
+    def run_tempctrls(self):
+        while True:
+            self.manage_tempctrls()
+            time.sleep(0.5)
 
+    def manage_tempctrls(self):
+        for devid in range(9):
+            tempctrl = self.stat['TemperatureControllers'][devid]
+            thermo = self.stat['Thermocouples'][devid]
+            if tempctrl['error_code'] == '\x01':
+                # TempCtrl is on
+                if thermo['temperature'] < tempctrl['setpoint']:
+                    thermo['temperature'] += 0.5
+                else:
+                    # We are at temperature
+                    #  do nothing
+                    pass
+            else:
+                # If tempctrl is off slowly cool
+                if thermo['temperature'] > 25.0:
+                    thermo['temperature'] -= 0.05
 
 e = ElixysSimulator()
 simstatus = e.stat

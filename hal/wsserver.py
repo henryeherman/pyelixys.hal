@@ -17,7 +17,6 @@ exit_event = Event()
 
 pkt_send_timeout = 0.1
 
-
 class WSHandler(tornado.websocket.WebSocketHandler):
     """ This the the main websocket handler that deals with incoming
     connections from the elixys synthesizer hardware client.
@@ -25,7 +24,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
     but putting them onto a queue.  The handler also, periodically
     send the commands from the software to the hardware.
     """
-    
+
     handler_instances = []
 
     def initialize(self, cmd_queue, status_queue):
@@ -71,7 +70,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         #self.write_message("Hello client")
 
     def on_message(self, message):
-        """ Upon receiving a message we place these 
+        """ Upon receiving a message we place these
         objects onto the status queue for consumption by
         the rest of the system """
         self.count += 1
@@ -106,6 +105,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
                 log.debug("Wrote %d bytes" % len(str(cmd)))
                 self.write_message(str(cmd))
                 #self.write_message("CMD:%s" % repr(cmd))
+                time.sleep(0.06)
         except Empty:
             pass
         tornado.ioloop.IOLoop.instance().add_timeout(
@@ -120,7 +120,7 @@ class WSServerProcess(Process):
     with to communicate directly with the hardware.
     Since it is a process we must use queues for all communication.
     """
-    
+
     stop_event = Event()
 
     def __init__(self, cmd_queue, status_queue):
@@ -131,7 +131,7 @@ class WSServerProcess(Process):
         self.status_queue = status_queue
         # Create a status object that parses the status packets
         # on the queue
-        
+
     def run(self):
         """ Setup the tornado websocket server
         setup a periodic callback to see if the
@@ -146,13 +146,13 @@ class WSServerProcess(Process):
         self.http_server = tornado.httpserver.HTTPServer(self.application)
         self.http_server.listen(8888)
         tornado.ioloop.PeriodicCallback(self.periodic_exit, 50).start()
-        
+
         try:
             log.debug("Tornado server IOLoop starting")
-            tornado.ioloop.IOLoop.instance().start() 
+            tornado.ioloop.IOLoop.instance().start()
         except (KeyboardInterrupt, SystemExit):
             tornado.ioloop.IOLoop.instance().stop()
-        
+
 
     @staticmethod
     def periodic_exit():
@@ -164,9 +164,9 @@ class WSServerProcess(Process):
             log.debug("Stopping Tornado server")
             tornado.ioloop.IOLoop.instance().stop()
 
-    def run_cmd(self, cmd):        
+    def run_cmd(self, cmd):
         self.cmd_queue.put(cmd)
-        
+
     def stop(self):
         WSServerProcess.stop_event.set()
 
@@ -174,7 +174,7 @@ command_queue = Queue()
 status_queue = Queue()
 wscomproc = WSServerProcess(command_queue, status_queue)
 status = Status()
-status.update_from_queue(status_queue)        
+status.update_from_queue(status_queue)
 
 def start_server():
     """ Helper function to start the server """
@@ -201,13 +201,13 @@ def exit_gracefully(signum, frame):
     sys.exit(0)
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, exit_gracefully)    
-    
+    signal.signal(signal.SIGINT, exit_gracefully)
+
 
     def send_test_cmds():
         for i in range(2):
             time.sleep(0.5)
-            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](100.0))            
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](100.0))
             wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][1](5.0))
             wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](100.0))
             time.sleep(0.5)
@@ -217,14 +217,14 @@ if __name__ == "__main__":
             wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][1](20.0))
             wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](20.0))
             time.sleep(0.5)
-            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](5.0))        
+            wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](5.0))
             wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][1](100.0))
             wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](5.0))
-		
-        wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](0.0))        
+
+        wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][0](0.0))
         wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][1](0.0))
         wscomproc.run_cmd(cmd_lookup['Mixers']['set_duty_cycle'][2](0.0))
-		
+
         for j in range(3):
             for i in range(16):
                 time.sleep(0.1)
@@ -234,26 +234,26 @@ if __name__ == "__main__":
                 wscomproc.run_cmd(cmd_lookup['Valves']['set_state1'](1<<i))
             for i in range(16):
                 time.sleep(0.1)
-                wscomproc.run_cmd(cmd_lookup['Valves']['set_state2'](1<<i))			
+                wscomproc.run_cmd(cmd_lookup['Valves']['set_state2'](1<<i))
         wscomproc.run_cmd(cmd_lookup['Valves']['set_state0'](0))
-        wscomproc.run_cmd(cmd_lookup['Valves']['set_state1'](0))					
-        wscomproc.run_cmd(cmd_lookup['Valves']['set_state2'](0))			
-		
+        wscomproc.run_cmd(cmd_lookup['Valves']['set_state1'](0))
+        wscomproc.run_cmd(cmd_lookup['Valves']['set_state2'](0))
+
         for i in range(3):
             time.sleep(0.5)
             wscomproc.run_cmd(cmd_lookup['Fans']['turn_on'][i]())
             time.sleep(0.5)
             wscomproc.run_cmd(cmd_lookup['Fans']['turn_off'][i]())
-		    
-    #thread.start_new_thread(send_test_cmds, ())    
-    
+
+    #thread.start_new_thread(send_test_cmds, ())
+
     log.debug("Starting loop to check status")
     start_server()
-    
+
     while(not exit_event.is_set()):
         if status.is_valid:
             print "Thermocouple 0 err_code= %x" % ord(status['Thermocouples'][0]['error_code'])
         time.sleep(1.0)
     log.debug("Attempt to join wscomproc")
     wscomproc.join()
-    
+
