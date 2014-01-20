@@ -436,13 +436,10 @@ class ElixysSimulator(ElixysObject):
         if ((self.stat['Valves']['state0'] & (1 << 6)) and
                 not(self.stat['Valves']['state1'] & (1 << 6))):
             log.debug("Reactor 0 will go down. DI0=True")
-            # immeadiately set DI 1
-            # Timer clear DI 0
-            # run timer to clear digital input 0
             def fxn():
-                self.stat['DigitalInputs']['state'] &= ~(1<<0)
+                self.stat['DigitalInputs']['state'] &= ~(1 << 0)
             Timer(2.0, fxn).start()
-            self.stat['DigitalInputs']['state'] |= (1<<1)
+            self.stat['DigitalInputs']['state'] |= (1 << 1)
 
 
 
@@ -450,25 +447,20 @@ class ElixysSimulator(ElixysObject):
         if ((self.stat['Valves']['state1'] & (1 << 6)) and
                 not(self.stat['Valves']['state0'] & (1 << 6))):
             log.debug("Reactor 0 will go up. DI1=True")
-            # immeadiately set DI 0
-            # Timer clear DI 1
             def fxn():
-                self.stat['DigitalInputs']['state'] &= ~(1<<1)
+                self.stat['DigitalInputs']['state'] &= ~(1 << 1)
             Timer(2.0,fxn).start()
-            self.stat['DigitalInputs']['state'] |= (1<<0)
+            self.stat['DigitalInputs']['state'] |= (1 << 0)
 
 
         # Check for Reactor 1 down (DI 3)
         if ((self.stat['Valves']['state0'] & (1 << 5)) and
                 not(self.stat['Valves']['state1'] & (1 << 5))):
             log.debug("Reactor 1 will go down. DI3=True")
-            # immeadiately set DI 1
-            # Timer clear DI 0
-            # run timer to clear digital input 0
             def fxn():
-                self.stat['DigitalInputs']['state'] &= ~(1<<3)
+                self.stat['DigitalInputs']['state'] &= ~(1 << 3)
             Timer(2.0, fxn).start()
-            self.stat['DigitalInputs']['state'] |= (1<<2)
+            self.stat['DigitalInputs']['state'] |= (1 << 2)
 
 
 
@@ -476,25 +468,20 @@ class ElixysSimulator(ElixysObject):
         if ((self.stat['Valves']['state1'] & (1 << 5)) and
                 not(self.stat['Valves']['state0'] & (1 << 5))):
             log.debug("Reactor 1 will go up. DI2=True")
-            # immeadiately set DI 0
-            # Timer clear DI 1
             def fxn():
-                self.stat['DigitalInputs']['state'] &= ~(1<<2)
+                self.stat['DigitalInputs']['state'] &= ~(1 << 2)
             Timer(2.0,fxn).start()
-            self.stat['DigitalInputs']['state'] |= (1<<3)
+            self.stat['DigitalInputs']['state'] |= (1 << 3)
 
 
         # Check for Reactor 2 down (DI 5)
         if ((self.stat['Valves']['state0'] & (1 << 4)) and
                 not(self.stat['Valves']['state1'] & (1 << 4))):
             log.debug("Reactor 1 will go down. DI3=True")
-            # immeadiately set DI 1
-            # Timer clear DI 0
-            # run timer to clear digital input 0
             def fxn():
-                self.stat['DigitalInputs']['state'] &= ~(1<<5)
+                self.stat['DigitalInputs']['state'] &= ~(1 << 5)
             Timer(2.0, fxn).start()
-            self.stat['DigitalInputs']['state'] |= (1<<4)
+            self.stat['DigitalInputs']['state'] |= (1 << 4)
 
 
 
@@ -502,12 +489,65 @@ class ElixysSimulator(ElixysObject):
         if ((self.stat['Valves']['state1'] & (1 << 4)) and
                 not(self.stat['Valves']['state0'] & (1 << 4))):
             log.debug("Reactor 1 will go up. DI2=True")
-            # immeadiately set DI 0
-            # Timer clear DI 1
             def fxn():
-                self.stat['DigitalInputs']['state'] &= ~(1<<4)
+                self.stat['DigitalInputs']['state'] &= ~(1 << 4)
             Timer(2.0,fxn).start()
-            self.stat['DigitalInputs']['state'] |= (1<<5)
+            self.stat['DigitalInputs']['state'] |= (1 << 5)
+
+        # Check for Gripper up (DI 6)
+        if ((self.stat['Valves']['state0'] & (1 << 10)) and
+                not(self.stat['Valves']['state1'] & (1 << 10))):
+            log.debug("Gripper will go up. DI6=True")
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1 << 6)
+            Timer(1.0,fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1 << 7)
+
+        # Check for Gripper lower (DI 7)
+        if ((self.stat['Valves']['state1'] & (1 << 10)) and
+                not(self.stat['Valves']['state0'] & (1 << 10))):
+            log.debug("Gripper will go down. DI7=True")
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1 << 7)
+            Timer(1.0,fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1 << 6)
+
+        # Check for GasTransfer up (DI 9)
+        if ((self.stat['Valves']['state1'] & (1 << 9)) and
+                not(self.stat['Valves']['state0'] & (1 << 9))):
+            log.debug("GasTransfer will go up. DI9=True")
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1 << 9)
+            Timer(1.0,fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1 << 8)
+
+        # Check for GasTransfer lower (DI 8)
+        if ((self.stat['Valves']['state0'] & (1 << 9)) and
+                not(self.stat['Valves']['state1'] & (1 << 9))):
+            log.debug("GasTransfer will go down. DI9=True")
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1 << 8)
+            Timer(1.0,fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1 << 9)
+
+        # Check for Gripper Open  (DI 10)
+        if ((self.stat['Valves']['state1'] & (1 << 8)) and
+                not(self.stat['Valves']['state0'] & (1 << 8))):
+            log.debug("Gripper will open. DI10=True")
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1 << 10)
+            Timer(0.2, fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1 << 11)
+
+        # Check for Gripper Close (DI 11)
+        if ((self.stat['Valves']['state0'] & (1 << 8)) and
+                not(self.stat['Valves']['state1'] & (1 << 8))):
+            log.debug("Gripper will close. DI11=True")
+            def fxn():
+                self.stat['DigitalInputs']['state'] &= ~(1 << 11)
+            Timer(0.2, fxn).start()
+            self.stat['DigitalInputs']['state'] |= (1 << 10)
+
 
 
 e = ElixysSimulator()
