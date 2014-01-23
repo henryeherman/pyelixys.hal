@@ -12,3 +12,4 @@ logilab-common==0.60.1
 numexpr==2.1
 astroid==1.0.1
 colorama==0.2.7
+pyserial==2.7
