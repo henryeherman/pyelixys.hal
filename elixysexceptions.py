@@ -28,3 +28,6 @@ class ElixysCommError(ElixysError):
 
 class ElixysComportError(ElixysCommError):
     pass
+
+class ElixysCBoxError(ElixysHALError):
+    pass
