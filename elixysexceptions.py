@@ -25,3 +25,6 @@ class ElixysPneumaticError(ElixysHALError):
 
 class ElixysCommError(ElixysError):
     pass
+
+class ElixysComportError(ElixysCommError):
+    pass

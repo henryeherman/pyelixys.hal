@@ -12,6 +12,7 @@ the hwconf
 import sys
 import time
 import threading
+import copy
 import collections
 from Queue import Empty
 from pyelixys.hal.statusfmt import StatusMessageFormatFactory
@@ -139,9 +140,14 @@ class Status(ElixysObject, collections.MutableMapping):
         log.debug("Starting update thread")
         self.thread.stop()
 
+    def as_json(self):
+        return json.dumps(self.store, indent=2)
+
+    def as_dict(self):
+        return copy.deepcopy(self.store)
+
 status = Status()
 
 if __name__ == '__main__':
-    pass
-    #from tests import pktdata
-    #data = status.parse_packet(pktdata.test_packet)
+    from IPython import embed
+    import json
