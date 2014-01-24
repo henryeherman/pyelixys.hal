@@ -8,7 +8,6 @@ The Reactor creates a TempCtrl according
 to the list of ids in the hwconf.
 """
 import time
-import math
 from pyelixys.logs import hallog as log
 from pyelixys.hal.systemobject import SystemObject
 import numpy as np

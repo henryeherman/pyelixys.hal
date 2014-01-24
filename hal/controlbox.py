@@ -47,6 +47,8 @@ class ControlBoxSystem(ElixysObject):
                                     "user has permission to"
                                     "access device" % self._port)
 
+        self._leds = 0
+
     def get_adcs(self):
         """ Query the CBox board for the ADC values
         convert them to integers, then multiple by the
@@ -112,14 +114,25 @@ class ControlBoxSystem(ElixysObject):
             raise ElixysCBoxError("Unexpected DAC device id")
 
         val = int(math.ceil(val))
+        dacmax = self.conf['DACMAX']
+        if val > dacmax:
+            log.warn("Attempt to set DAC %d to "
+                    "%d, setting to MAX %d", devid, val, dacmax)
+            val = dacmax
+
+        dacmin = self.conf['DACMIN']
+        if val < dacmin:
+            log.warn("Attempt to set DAC %d to "
+                    "%d, setting to MIN %d", devid, val, dacmin)
+
         tmpstr = tmpstr % (devid, val)
         log.debug("Set DAC: sent %s", tmpstr)
         self.write(tmpstr)
+        self.read()
 
     def set_dac0(self, value):
         """ Set DAC0 value """
         self.set_dac(0, value)
-
 
     def set_dac1(self, value):
         """ Set DAC1 value """
@@ -128,6 +141,76 @@ class ControlBoxSystem(ElixysObject):
     dac0 = property(get_dac0, set_dac0)
     dac1 = property(get_dac1, set_dac1)
 
+
+    def get_ssr(self):
+        """ Return the state of the solid state relays """
+        self.clear_in_serial_buffer()
+        tmpstr = "/SSR/run\n"
+        self.write(tmpstr)
+        resp = self.read()
+        regex = re.compile("(?:[SSR])+ "
+                       "(?P<ssr0>[0-9A-Fa-f]*), "
+                       "(?P<ssr1>[0-9A-Fa-f]*)")
+
+        print "READ:" + resp
+        mtch = regex.match(resp)
+        ssr0 = bool(int(mtch.group('ssr0')))
+        ssr1 = bool(int(mtch.group('ssr1')))
+        return ssr0, ssr1
+
+
+    def get_ssr0(self):
+        """ Return SSR state 0 """
+        return self.get_ssr()[0]
+
+    def get_ssr1(self):
+        """ Return SSR state 1 """
+        return self.get_ssr()[1]
+
+    def set_ssr(self, devid, value):
+        """ Set SSR state """
+        tmpstr = "/SSR/run %d %d\n"
+
+        if value is True:
+            value = 1
+        elif value is False:
+            value = 0
+        else:
+            log.warn("Invalid SSR %d set value=%s", devid, value)
+            return
+
+        tmpstr = tmpstr % (devid, value)
+        print tmpstr
+        self.write(tmpstr)
+        self.read()
+
+    def set_ssr0(self, value):
+        """ Set SSR state 0 """
+        self.set_ssr(0, value)
+
+    def set_ssr1(self, value):
+        """ Set SSR state 1 """
+        self.set_ssr(1, value)
+
+    ssr0 = property(get_ssr0, set_ssr0)
+    ssr1 = property(get_ssr1, set_ssr1)
+
+    def set_leds(self, value):
+        """ Set the LED Ring """
+        tmpstr = "/LEDS/run %X\n"
+        if not value < 2**24 and value > 0:
+            log.warn("Invalid LEDs value=%d", value)
+            return
+
+        self.write(tmpstr % value)
+        self.read()
+        self._leds = value
+
+    def get_leds(self):
+        """ Return LED state """
+        return self._leds
+
+    leds = property(get_leds, set_leds)
 
     def reconnect(self):
         """ Attempt to reconnect the elixys control box """
@@ -173,8 +256,6 @@ class ControlBoxSystem(ElixysObject):
                 self.reconnect()
 
         raise ElixysComportError("Failed to write to CBox, %d retries" % retry)
-
-
 
     def read(self, retry=2):
         """ This will replace the serial read.
